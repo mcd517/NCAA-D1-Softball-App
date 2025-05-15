@@ -137,28 +137,10 @@ class NCAAService {
           // The API returns slugging percentage in "SLG PCT" field (with space)
           value = parseFloat(item["SLG PCT"] || item.SLG || item.slg) || 0;
           
-          // Include all required fields for display - matching exactly what's shown on the NCAA website
-          stats.g    = parseInt(item.G    || item.g)    || 0;
-          stats.ab   = parseInt(item.AB   || item.ab)   || 0;
-          stats.tb   = parseInt(item.TB   || item.tb)   || 0; // Total bases - this is shown on the NCAA site
-          
-          // Calculate hits, doubles, triples, homers if not directly available
-          // Many of these might not be present in the slugging API endpoint
-          // so we'll either use the value provided or calculate from TB
-          stats.h = parseInt(item.H || item.h) || 0;
-          
-          // For 2B, 3B, HR - try to extract if available
-          stats['2b'] = parseInt(item['2B'] || item['2b']) || 0;
-          stats['3b'] = parseInt(item['3B'] || item['3b']) || 0;
-          stats.hr = parseInt(item.HR || item.hr) || 0;
-          
-          // If our extracted values don't explain the total bases,
-          // but TB is available, calculate missing values
-          const calculatedTB = stats.h + stats['2b'] + (2 * stats['3b']) + (3 * stats.hr);
-          if (stats.tb > 0 && calculatedTB < stats.tb) {
-            console.log(`SLG: TB value (${stats.tb}) doesn't match calculated TB (${calculatedTB})`);
-          }
-          
+          // Include only the fields exactly as shown on NCAA website
+          stats.g  = parseInt(item.G || item.g) || 0;
+          stats.ab = parseInt(item.AB || item.ab) || 0;
+          stats.tb = parseInt(item.TB || item.tb) || 0;
           break;
         case 'era': // Earned Run Average
           value = parseFloat(item.ERA || item.era) || 0;

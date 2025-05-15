@@ -143,10 +143,7 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
           <>
             <th>G</th>
             <th>AB</th>
-            <th>H</th>
-            <th>2B</th>
-            <th>3B</th>
-            <th>HR</th>
+            <th>TB</th>
           </>
         );
       case 'era':
@@ -219,10 +216,7 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
           <>
             <td>{additionalStats.g || '-'}</td>
             <td>{additionalStats.ab || '-'}</td>
-            <td>{additionalStats.h || '-'}</td>
-            <td>{additionalStats['2b'] || '-'}</td>
-            <td>{additionalStats['3b'] || '-'}</td>
-            <td>{additionalStats.hr || '-'}</td>
+            <td>{additionalStats.tb || '-'}</td>
           </>
         );
       case 'era':
