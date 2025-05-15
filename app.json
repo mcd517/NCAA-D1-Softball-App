@@ -4,7 +4,7 @@
     "slug": "ncaa-d1-softball-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./public/softball-icon.svg",
+    "icon": "./public/softball-icon.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./public/softball-bg.jpg",
@@ -20,13 +20,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./public/softball-icon.svg",
+        "foregroundImage": "./public/softball-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.yourcompany.ncaad1softball"
     },
     "web": {
-      "favicon": "./public/softball-icon.svg"
+      "favicon": "./public/softball-icon.png"
     },
     "entryPoint": "./src/App.expo.js",
     "plugins": [
