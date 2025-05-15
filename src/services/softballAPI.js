@@ -1,14 +1,29 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 
-// Determine the API base URL based on Vite's mode
-const API_BASE_URL = import.meta.env.PROD
-  ? '/.netlify/functions/api' // For Netlify production builds
-  : 'http://localhost:5003/api/softball'; // For local development
+// Determine the API base URL based on platform and environment
+const getApiBaseUrl = () => {
+  // For React Native mobile apps
+  if (Platform.OS !== 'web') {
+    // Use actual server URL or IP for non-web platforms
+    // For iOS simulator, use localhost
+    // For physical devices, use your computer's IP address (not localhost)
+    return Platform.OS === 'ios' ? 
+      'http://localhost:5003/api/softball' : 
+      'http://10.0.2.2:5003/api/softball'; // Android emulator special IP for host machine
+  }
+  
+  // For web - use the same logic as before
+  const isProd = process.env.NODE_ENV === 'production';
+  return isProd 
+    ? '/.netlify/functions/api' 
+    : 'http://localhost:5003/api/softball';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 console.log('Frontend connecting to backend at:', API_BASE_URL);
-// Log Vite environment mode for debugging
-console.log('Is production (import.meta.env.PROD):', import.meta.env.PROD);
-console.log('Is development (import.meta.env.DEV):', import.meta.env.DEV);
+console.log('Platform:', Platform.OS);
 
 // Create axios instance for our backend with longer timeout
 const apiClient = axios.create({

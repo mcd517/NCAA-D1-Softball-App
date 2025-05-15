@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "NCAA D1 Softball",
+    "slug": "ncaa-d1-softball-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./public/softball-icon.svg",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./public/softball-bg.jpg",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.ncaad1softball"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./public/softball-icon.svg",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.yourcompany.ncaad1softball"
+    },
+    "web": {
+      "favicon": "./public/softball-icon.svg"
+    },
+    "entryPoint": "./src/App.expo.js",
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
