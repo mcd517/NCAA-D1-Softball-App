@@ -14,10 +14,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #4a90e2;
-  background-image: url('/softball-icon.svg');
-  background-repeat: repeat;
-  background-size: 80px;
+  background: linear-gradient(rgba(10, 10, 30, 0.7), rgba(10, 10, 30, 0.7)), url('/softball-bg.jpg') center/cover no-repeat;
+  background-attachment: fixed;
+  color: #ffffff;
 }
 
 #root {
