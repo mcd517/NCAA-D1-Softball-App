@@ -3,7 +3,7 @@
   line-height: 1.5;
   font-weight: 400;
   color: #213547;
-  background-color: #f0f2f5;
+  background-color: #4a90e2;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,6 +14,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: linear-gradient(rgba(10, 10, 30, 0.7), rgba(10, 10, 30, 0.7)), url('/softball-bg.jpg') center/cover no-repeat;
+  background-attachment: fixed;
+  color: #ffffff;
 }
 
 #root {

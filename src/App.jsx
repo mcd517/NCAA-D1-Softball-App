@@ -100,7 +100,7 @@ function App() {
       return (
         <div className="app-container">
           <header className="app-header">
-            <h1>D1 College Softball Stats & Rankings</h1>
+            <h1>NCAA D1 College Softball Stats & Rankings</h1>
             <p className="data-update-info">
               Data updated: {new Date().toLocaleDateString()}
             </p>
@@ -136,7 +136,7 @@ function App() {
           </main>
 
           <footer className="app-footer">
-            <p>&copy; {new Date().getFullYear()} D1 College Softball Stats & Rankings | Data Sources: NCAA, ESPN</p>
+            <p>&copy; {new Date().getFullYear()} NCAA D1 College Softball Stats & Rankings | Data Sources: NCAA </p>
           </footer>
         </div>
       );
@@ -155,7 +155,7 @@ function App() {
     return (
       <div className="loading-container">
         <div className="spinner"></div>
-        <p>Loading D1 College Softball data...</p>
+        <p>Loading NCAA D1 College Softball data...</p>
       </div>
     );
   }
