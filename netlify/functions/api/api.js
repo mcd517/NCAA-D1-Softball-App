@@ -121,24 +121,37 @@ class NCAAService {
           stats.hr_g = stats.g > 0 ? parseFloat((stats.hr / stats.g).toFixed(2)) : 0;
           break;
         case 'obp': // On-Base Percentage
-          // The API (id:510) should provide OBP directly. Components H,BB,HBP,AB,G are for display.
-          value = parseFloat(item.OBP || item.obp || item.Value || item.value) || 0;
+          // The API returns on-base percentage in the "PCT" field
+          value = parseFloat(item.PCT || item.OBP || item.obp || 0);
+          
+          // Include all required fields for the StatLeaders component
           stats.g   = parseInt(item.G   || item.g)   || 0;
           stats.ab  = parseInt(item.AB  || item.ab)  || 0;
           stats.h   = parseInt(item.H   || item.h)   || 0;
           stats.bb  = parseInt(item.BB  || item.bb)  || 0;
           stats.hbp = parseInt(item.HBP || item.hbp) || 0;
-          // SF (Sacrifice Flies) might be needed if calculating OBP manually, but API usually provides it.
-          // stats.sf  = parseInt(item.SF  || item.sf)  || 0;
+          stats.sf  = parseInt(item.SF  || item.sf)  || 0;
+          stats.sh  = parseInt(item.SH  || item.sh)  || 0;
           break;
         case 'slg': // Slugging Percentage
-          // The API (id:343) should provide SLG directly. Components G,AB,H,2B,3B,HR are for display.
-          value = parseFloat(item.SLG || item.slg || item.Value || item.value) || 0;
+          // The API returns slugging percentage in "SLG PCT" field (with space)
+          value = parseFloat(item["SLG PCT"] || item.SLG || item.slg) || 0;
+          
+          // Include all required fields for display
           stats.g    = parseInt(item.G    || item.g)    || 0;
           stats.ab   = parseInt(item.AB   || item.ab)   || 0;
           stats.h    = parseInt(item.H    || item.h)    || 0;
-          stats['2b'] = parseInt(item['2B'] || item['2b'] || item.DOUBLE) || 0;
-          stats['3b'] = parseInt(item['3B'] || item['3b'] || item.TRIPLE) || 0;
+          stats.tb   = parseInt(item.TB   || item.tb)   || 0; // Total bases
+          
+          // Some APIs might include the breakdown of hits directly
+          if (item['2B'] !== undefined || item['2b'] !== undefined) {
+            stats['2b'] = parseInt(item['2B'] || item['2b']) || 0;
+          }
+          
+          if (item['3B'] !== undefined || item['3b'] !== undefined) {
+            stats['3b'] = parseInt(item['3B'] || item['3b']) || 0;
+          }
+          
           stats.hr   = parseInt(item.HR   || item.hr)   || 0;
           break;
         case 'era': // Earned Run Average
