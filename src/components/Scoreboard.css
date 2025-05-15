@@ -1,0 +1,227 @@
+.scoreboard {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.scoreboard h2 {
+  color: #333;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 1.8rem;
+}
+
+/* Date selector styles */
+.date-selector {
+  margin-bottom: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #f8f8f8;
+}
+
+.date-buttons {
+  display: flex;
+  overflow-x: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.date-buttons::-webkit-scrollbar {
+  height: 5px;
+}
+
+.date-buttons::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.date-buttons::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+
+.date-button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 4px;
+  background-color: #e8e8e8;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.date-button:hover {
+  background-color: #d8d8d8;
+}
+
+.date-button.active {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.date-input-container {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  gap: 10px;
+}
+
+.date-input-container label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.date-input-container input {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.display-date {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.display-date h3 {
+  color: #4a90e2;
+  font-size: 1.2rem;
+}
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.game-card {
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+}
+
+.game-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+.game-status {
+  background-color: #333;
+  color: white;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-indicator.in_progress {
+  background-color: #4caf50;
+  animation: pulse 1.5s infinite;
+}
+
+.status-indicator.scheduled {
+  background-color: #2196f3;
+}
+
+.status-indicator.final {
+  background-color: #f44336;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+.teams-container {
+  padding: 15px;
+}
+
+.team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.team.away {
+  border-bottom: 1px solid #ddd;
+}
+
+.team-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.team-abbr {
+  color: #777;
+  font-size: 0.8rem;
+  width: 50px;
+  text-align: center;
+}
+
+.team-score {
+  font-weight: 700;
+  font-size: 1.3rem;
+  width: 40px;
+  text-align: center;
+}
+
+.no-games {
+  text-align: center;
+  padding: 30px;
+  color: #777;
+  font-style: italic;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.update-info {
+  margin-top: 20px;
+  text-align: right;
+  font-size: 0.85rem;
+  color: #777;
+  font-style: italic;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  font-style: italic;
+  color: #777;
+}
+
+@media (max-width: 768px) {
+  .games-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .date-input-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
