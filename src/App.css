@@ -7,8 +7,8 @@
   --danger-color: #f44336;
   --warning-color: #ff9800;
   --accent-color: #8e44ad;
-  --background-color: #f0f2f5;
-  --card-background: #ffffff;
+  --background-color: transparent;
+  --card-background: rgba(255, 255, 255, 0.9);
   --hover-color: #e3f2fd;
 }
 

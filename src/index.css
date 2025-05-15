@@ -14,6 +14,10 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: linear-gradient(to bottom right, rgba(74, 144, 226, 0.8), rgba(142, 68, 173, 0.8)), url('/softball-icon.svg');
+  background-repeat: repeat;
+  background-size: 150px;
+  background-blend-mode: overlay;
 }
 
 #root {
