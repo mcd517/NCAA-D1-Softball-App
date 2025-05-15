@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-// Backend API URL - points to our Express server
-const API_BASE_URL = 'http://localhost:5003/api/softball';
+// Determine the API base URL based on Vite's mode
+const API_BASE_URL = import.meta.env.PROD
+  ? '/.netlify/functions/api' // For Netlify production builds
+  : 'http://localhost:5003/api/softball'; // For local development
 
 console.log('Frontend connecting to backend at:', API_BASE_URL);
+// Log Vite environment mode for debugging
+console.log('Is production (import.meta.env.PROD):', import.meta.env.PROD);
+console.log('Is development (import.meta.env.DEV):', import.meta.env.DEV);
 
 // Create axios instance for our backend with longer timeout
 const apiClient = axios.create({
