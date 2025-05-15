@@ -1,15 +1,20 @@
 :root {
-  --primary-color: #6bb2ff; /* Lighter blue for primary elements */
-  --secondary-color: #f0f8ff; /* Alice blue for light backgrounds/text */
-  --text-color: #ffffff; /* White text for general content */
-  --border-color: #4a90e2; /* A brighter blue for borders */
+  --primary-color: #6bb2ff; 
+  --primary-rgb: 107, 178, 255; /* RGB for use in rgba */
+  --secondary-color: #e0e0e0; /* Lightened for better contrast on dark bg */
+  --text-color: #ffffff; 
+  --border-color: rgba(107, 178, 255, 0.5); /* Primary color with alpha for borders */
   --success-color: #5cb85c;
   --danger-color: #d9534f;
   --warning-color: #f0ad4e;
-  --accent-color: #9b59b6; /* A contrasting purple for accents */
-  --background-color: transparent; /* Body background is handled by index.css */
-  --card-background: rgba(15, 25, 45, 0.85); /* Dark, translucent blue for cards */
-  --hover-color: rgba(107, 178, 255, 0.2); /* Light blue hover for interactive elements */
+  --accent-color: #b388ff; /* Lighter purple accent */
+  --background-color: transparent;
+  /* Frosted glass effect for cards */
+  --card-background: rgba(25, 40, 65, 0.75); /* Slightly more opaque for blur */
+  --card-backdrop-filter: blur(8px);
+  --hover-color: rgba(107, 178, 255, 0.15); /* Adjusted hover */
+  --shadow-color: rgba(0, 0, 0, 0.3); /* Softer shadow color */
+  --light-shadow-color: rgba(107, 178, 255, 0.1); /* Subtle light blue shadow */
 }
 
 * {
@@ -20,13 +25,13 @@
 
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  /* background-color is set in index.css */
   color: var(--text-color);
   line-height: 1.6;
+  font-size: 16px; /* Slightly increase base font size */
 }
 
 .app-container {
-  max-width: 1200px;
+  max-width: 1300px; /* Slightly wider container */
   margin: 0 auto;
   padding: 20px;
 }
@@ -35,7 +40,7 @@ body {
   text-align: center;
   margin-bottom: 20px;
   padding: 20px 0;
-  border-bottom: 2px solid var(--primary-color);
+  border-bottom: 1px solid var(--border-color); /* Thinner border */
 }
 
 .app-header h1 {
@@ -43,7 +48,7 @@ body {
   font-size: 2.8rem; /* Slightly larger title */
   font-weight: 700;
   margin-bottom: 8px;
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.5); /* Add text shadow for depth */
+  text-shadow: 1px 1px 5px var(--shadow-color); /* Enhanced text shadow */
 }
 
 .data-update-info {
@@ -63,8 +68,8 @@ body {
   justify-content: center;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Deeper shadow for nav */
-  background-color: var(--card-background); /* Use card background for nav */
+  background-color: transparent; /* Nav will be part of section-container or have its own card style */
+  box-shadow: none; /* Remove shadow if it's to be flat or part of a card */
 }
 
 .app-navigation li {
@@ -74,44 +79,50 @@ body {
 
 .app-navigation button {
   width: 100%;
-  padding: 12px 20px;
+  padding: 14px 22px; /* Larger click target */
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
   cursor: pointer;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500; /* Slightly less bold for a cleaner look */
   color: var(--secondary-color); /* Lighter text for nav buttons */
-  transition: all 0.3s ease;
+  text-transform: uppercase; /* Modern touch */
+  letter-spacing: 0.5px; /* Modern touch */
+  transition: all 0.25s ease-in-out;
 }
 
 .app-navigation li.active button {
   color: var(--primary-color);
-  border-bottom: 3px solid var(--primary-color);
-  background-color: var(--hover-color);
+  border-bottom-color: var(--primary-color);
+  background-color: var(--hover-color); /* Consistent active/hover */
 }
 
 .app-navigation button:hover {
   background-color: var(--hover-color);
   color: var(--primary-color);
+  border-bottom-color: var(--primary-color); /* Indicate hover on border as well */
 }
 
 /* Content Sections */
 .section-container {
   background-color: var(--card-background); /* Use card background for sections */
-  border-radius: 8px;
-  padding: 25px; /* Slightly more padding */
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35); /* Enhanced shadow for depth */
-  margin-bottom: 25px;
+  backdrop-filter: var(--card-backdrop-filter);
+  -webkit-backdrop-filter: var(--card-backdrop-filter); /* Safari support */
+  border-radius: 12px; /* Softer radius */
+  padding: 30px; 
+  box-shadow: 0 8px 25px var(--shadow-color), 0 0 10px var(--light-shadow-color); /* Softer, layered shadow */
+  margin-bottom: 30px;
+  border: 1px solid rgba(255,255,255,0.1); /* Subtle border for glass effect */
 }
 
 .section-container h2 {
   margin-bottom: 20px;
   color: var(--primary-color);
-  font-size: 1.8rem; /* Larger section titles */
+  font-size: 2rem; 
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+  text-shadow: 1px 1px 3px var(--shadow-color);
 }
 
 .app-content {
@@ -141,7 +152,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border-left-color: var(--primary-color);
+  border-left-color: var(--accent-color); /* Use accent for spinner */
   animation: spin 1s ease infinite;
   margin-bottom: 16px;
 }
@@ -161,8 +172,12 @@ body {
   color: var(--danger-color);
   font-size: 1.2rem;
   background-color: var(--card-background);
+  backdrop-filter: var(--card-backdrop-filter);
+  -webkit-backdrop-filter: var(--card-backdrop-filter);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--danger-color);
+  box-shadow: 0 5px 15px rgba(var(--danger-rgb, 217, 83, 79), 0.3); /* Define --danger-rgb if not present */
 }
 
 .app-footer {
@@ -171,7 +186,7 @@ body {
   margin-top: 40px;
   border-top: 1px solid var(--border-color);
   color: var(--secondary-color);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
 
 @media (max-width: 768px) {
