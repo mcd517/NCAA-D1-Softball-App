@@ -40,13 +40,14 @@ body {
 
 .app-header h1 {
   color: var(--primary-color);
-  font-size: 2.5rem;
+  font-size: 2.8rem; /* Slightly larger title */
   font-weight: 700;
   margin-bottom: 8px;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.5); /* Add text shadow for depth */
 }
 
 .data-update-info {
-  color: #777;
+  color: var(--secondary-color); /* Lighter color for less emphasis */
   font-size: 0.9rem;
   font-style: italic;
 }
@@ -62,8 +63,8 @@ body {
   justify-content: center;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  background-color: var(--card-background);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Deeper shadow for nav */
+  background-color: var(--card-background); /* Use card background for nav */
 }
 
 .app-navigation li {
@@ -80,7 +81,7 @@ body {
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
-  color: #555;
+  color: var(--secondary-color); /* Lighter text for nav buttons */
   transition: all 0.3s ease;
 }
 
@@ -97,19 +98,20 @@ body {
 
 /* Content Sections */
 .section-container {
-  background-color: var(--card-background);
+  background-color: var(--card-background); /* Use card background for sections */
   border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  padding: 25px; /* Slightly more padding */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.35); /* Enhanced shadow for depth */
+  margin-bottom: 25px;
 }
 
 .section-container h2 {
   margin-bottom: 20px;
   color: var(--primary-color);
-  font-size: 1.6rem;
+  font-size: 1.8rem; /* Larger section titles */
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-color);
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
 }
 
 .app-content {
@@ -127,7 +129,7 @@ body {
   text-align: center;
   padding: 80px;
   font-size: 1.2rem;
-  color: #777;
+  color: var(--secondary-color);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -168,7 +170,7 @@ body {
   padding: 20px 0;
   margin-top: 40px;
   border-top: 1px solid var(--border-color);
-  color: #777;
+  color: var(--secondary-color);
   font-size: 0.9rem;
 }
 
@@ -178,7 +180,7 @@ body {
   }
   
   .app-header h1 {
-    font-size: 1.8rem;
+    font-size: 2.2rem; /* Adjust title size for mobile */
   }
   
   .app-navigation ul {
