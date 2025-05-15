@@ -17,14 +17,14 @@ class NCAAService {
   constructor() {
     // Use the current 'current/individual/{id}' endpoints for live data
     this.statsUrls = {
-      batting: '/stats/softball/d1/current/individual/271',
-      hits: '/stats/softball/d1/current/individual/1088',
-      homeRuns: '/stats/softball/d1/current/individual/514',
-      obp: '/stats/softball/d1/current/individual/510',
-      slg: '/stats/softball/d1/current/individual/343',
-      era: '/stats/softball/d1/current/individual/276',
-      strikeoutsPerSeven: '/stats/softball/d1/current/individual/278',
-      strikeouts: '/stats/softball/d1/current/individual/539'
+      batting: '/stats/softball/d1/current/individual/271', // Batting Average
+      hits: '/stats/softball/d1/current/individual/1088',    // Hits
+      homeRuns: '/stats/softball/d1/current/individual/514', // Home Runs
+      obp: '/stats/softball/d1/current/individual/510',      // On-Base Percentage
+      slg: '/stats/softball/d1/current/individual/343',      // Slugging Percentage
+      era: '/stats/softball/d1/current/individual/276',      // Earned Run Average
+      strikeoutsPerSeven: '/stats/softball/d1/current/individual/278', // Strikeouts Per Seven Innings
+      strikeouts: '/stats/softball/d1/current/individual/539'  // Strikeouts (Total)
     };
     
     // Last request timestamp to enforce rate limiting
@@ -102,24 +102,69 @@ class NCAAService {
       let value = 0;
       const stats = {};
 
-      // Category-specific mapping
+      // Category-specific mapping based on ncaaWebScraper.js and StatLeaders.jsx requirements
       switch (category) {
-        case 'batting':
+        case 'batting': // Batting Average
           value = parseFloat(item.BA || item.AVG || item.avg || item.ba) || 0;
           stats.g  = parseInt(item.G  || item.g)  || 0;
           stats.ab = parseInt(item.AB || item.ab) || 0;
           stats.h  = parseInt(item.H  || item.h)  || 0;
           break;
+        case 'hits':
+          value = parseInt(item.H || item.h) || 0;
+          stats.g = parseInt(item.G || item.g) || 0;
+          break;
         case 'homeRuns':
           value = parseInt(item.HR || item.hr) || 0;
           stats.g  = parseInt(item.G  || item.g)  || 0;
+          stats.hr = parseInt(item.HR || item.hr) || 0; // For HR/G calculation
+          stats.hr_g = stats.g > 0 ? parseFloat((stats.hr / stats.g).toFixed(2)) : 0;
           break;
-        case 'era':
+        case 'obp': // On-Base Percentage
+          // The API (id:510) should provide OBP directly. Components H,BB,HBP,AB,G are for display.
+          value = parseFloat(item.OBP || item.obp || item.Value || item.value) || 0;
+          stats.g   = parseInt(item.G   || item.g)   || 0;
+          stats.ab  = parseInt(item.AB  || item.ab)  || 0;
+          stats.h   = parseInt(item.H   || item.h)   || 0;
+          stats.bb  = parseInt(item.BB  || item.bb)  || 0;
+          stats.hbp = parseInt(item.HBP || item.hbp) || 0;
+          // SF (Sacrifice Flies) might be needed if calculating OBP manually, but API usually provides it.
+          // stats.sf  = parseInt(item.SF  || item.sf)  || 0;
+          break;
+        case 'slg': // Slugging Percentage
+          // The API (id:343) should provide SLG directly. Components G,AB,H,2B,3B,HR are for display.
+          value = parseFloat(item.SLG || item.slg || item.Value || item.value) || 0;
+          stats.g    = parseInt(item.G    || item.g)    || 0;
+          stats.ab   = parseInt(item.AB   || item.ab)   || 0;
+          stats.h    = parseInt(item.H    || item.h)    || 0;
+          stats['2b'] = parseInt(item['2B'] || item['2b'] || item.DOUBLE) || 0;
+          stats['3b'] = parseInt(item['3B'] || item['3b'] || item.TRIPLE) || 0;
+          stats.hr   = parseInt(item.HR   || item.hr)   || 0;
+          break;
+        case 'era': // Earned Run Average
           value = parseFloat(item.ERA || item.era) || 0;
+          stats.app = parseInt(item.App || item.APP || item.app) || 0;
           stats.ip  = parseFloat(item.IP || item.ip)  || 0;
+          stats.er  = parseInt(item.ER || item.er)  || 0;
+          break;
+        case 'strikeoutsPerSeven': // K/7
+          value = parseFloat(item['K/7'] || item.K7 || item.Value || item.value) || 0;
+          stats.app = parseInt(item.App || item.APP || item.app) || 0;
+          stats.ip  = parseFloat(item.IP || item.ip)  || 0;
+          stats.so  = parseInt(item.SO  || item.so)   || 0;
+          break;
+        case 'strikeouts': // Total Strikeouts (maps from 'strikeoutsTotal' in UI)
+          value = parseInt(item.SO || item.so || item.Value || item.value) || 0;
+          stats.app = parseInt(item.App || item.APP || item.app) || 0;
           break;
         default:
+          // Fallback for any unhandled category, though all should be covered.
           value = parseFloat(item.Value || item.value) || 0;
+          // Attempt to grab common fields if they exist
+          if (item.G !== undefined || item.g !== undefined) stats.g = parseInt(item.G || item.g) || 0;
+          if (item.AB !== undefined || item.ab !== undefined) stats.ab = parseInt(item.AB || item.ab) || 0;
+          if (item.H !== undefined || item.h !== undefined) stats.h = parseInt(item.H || item.h) || 0;
+          break;
       }
 
       result.leaders.push({
