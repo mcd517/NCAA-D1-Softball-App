@@ -52,7 +52,7 @@ export default function App() {
     };
 
     fetchData();
-  }, []);
+  }, [activeStatCategory]);
 
   // Handle stat category change
   const handleCategoryChange = async (category) => {

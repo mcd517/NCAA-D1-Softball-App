@@ -26,3 +26,52 @@ index xxxxxxx..xxxxxxx 100644
 +
  /**
    \rst
+@@ -336,7 +336,7 @@ namespace internal {
+ 
+ #ifdef __cpp_char8_t
+-  using char8_type = char8_t;
++  using char8_type = unsigned char;  // Fix: use unsigned char instead of char8_t
+ #else
+-  enum char8_type : unsigned char {};
++  using char8_type = unsigned char;  // Fix: use type alias instead of enum
+ #endif
+ 
+ }  // namespace internal
+@@ -346,12 +346,33 @@ namespace internal {
+ // Add std::char_traits specialization for fmt::internal::char8_type
+ namespace std {
+   template <>
+-  struct char_traits<fmt::internal::char8_type> {
++  struct char_traits<fmt::internal::char8_type> : char_traits<unsigned char> {
+     using char_type = fmt::internal::char8_type;
+-    static size_t length(const char_type* s) {
+-      return char_traits<char>::length(reinterpret_cast<const char*>(s));
+-    }
+   };
++  
++  // Add forward declarations of commonly used std types to prevent errors
++  // These are used by fmt but can cause errors when redefined
++  #ifndef FMT_STD_FORWARD_DECLS
++  #define FMT_STD_FORWARD_DECLS
++  template<typename T> struct is_empty;
++  template<typename T> struct is_arithmetic;
++  template<typename T> struct is_convertible;
++  template<typename T> struct is_constructible;
++  template<typename T, typename U> struct is_same;
++  template<bool B, class T = void> struct enable_if;
++  #endif
++}
++
++// Prevent redefinition of standard library templates in fmt
++#ifndef FMT_TEMPLATE_ALIASES_DEFINED
++#define FMT_TEMPLATE_ALIASES_DEFINED
++namespace fmt {
++namespace v6 {
++  using std::enable_if_t;
++  using std::conditional_t;
++  using std::bool_constant;
++  using std::remove_reference_t;
++  using std::remove_const_t;
++}
+ }
++#endif

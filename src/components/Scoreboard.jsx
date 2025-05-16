@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './Scoreboard.css';
 
 const Scoreboard = ({ games, onDateChange }) => {
   // Helper to get today's date in YYYY-MM-DD for input
   const getTodayInput = () => new Date().toISOString().split('T')[0];
   // Convert YYYY-MM-DD to YYYYMMDD for API
-  const formatDateParam = (dateStr) => dateStr.replace(/-/g, '');
+  const formatDateParam = useCallback((dateStr) => dateStr.replace(/-/g, ''), []);
 
   const [selectedDate, setSelectedDate] = useState(getTodayInput());
 
   // Notify parent on initial load
   useEffect(() => {
     onDateChange(formatDateParam(selectedDate));
-  }, []);
+  }, [onDateChange, selectedDate, formatDateParam]);
 
   const handleDateChange = (e) => {
     const newDate = e.target.value;

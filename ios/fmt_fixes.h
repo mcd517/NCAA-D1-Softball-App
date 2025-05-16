@@ -1,14 +1,36 @@
-// Fix for fmt library template issues
+// Force use of our fixes for char8_type issues in the fmt library
 #pragma once
 
-#include <string>
-#include <type_traits>
+#ifndef FMT_FIXES_H
+#define FMT_FIXES_H
 
-// Ensure we get proper char traits specialization before fmt includes it
+// Include standard library headers
+#include <cstddef>     // for size_t
+#include <ios>         // for streamoff, streampos
+#include <cwchar>      // for mbstate_t
+#include <cstring>     // for memcpy, memmove, memcmp
+
+// This file provides minimal fixes for the fmt library to compile on iOS
+
+// Define these flags to disable problematic features
+#define FMT_USE_NONTYPE_TEMPLATE_PARAMETERS 0
+#define FMT_UNICODE 0 
+#define FMT_USE_CONSTEXPR 0
+
+// Forward declarations to avoid namespace conflicts
+// Define the char8_type in a non-conflicting way
+#ifndef FMT_CHAR8_TYPE_DEFINED
+#define FMT_CHAR8_TYPE_DEFINED
+namespace fmt_fix {
+  using char8_type = unsigned char;
+}
+#endif
+
+// Full specialization of std::char_traits for our custom char8_type
 namespace std {
   template<>
-  struct char_traits<unsigned char> {
-    using char_type = unsigned char;
+  struct char_traits<fmt_fix::char8_type> {
+    using char_type = fmt_fix::char8_type;
     using int_type = int;
     using off_type = streamoff;
     using pos_type = streampos;
@@ -19,17 +41,11 @@ namespace std {
     static bool lt(char_type c1, char_type c2) noexcept { return c1 < c2; }
     
     static int compare(const char_type* s1, const char_type* s2, size_t n) {
-      for (size_t i = 0; i < n; ++i) {
-        if (lt(s1[i], s2[i])) return -1;
-        if (lt(s2[i], s1[i])) return 1;
-      }
-      return 0;
+      return memcmp(s1, s2, n);
     }
     
     static size_t length(const char_type* s) {
-      const char_type* p = s;
-      while (*p) ++p;
-      return p - s;
+      return char_traits<char>::length(reinterpret_cast<const char*>(s));
     }
     
     static const char_type* find(const char_type* s, size_t n, const char_type& a) {
@@ -40,16 +56,11 @@ namespace std {
     }
     
     static char_type* move(char_type* s1, const char_type* s2, size_t n) {
-      if (s1 < s2) {
-        for (size_t i = 0; i < n; ++i) assign(s1[i], s2[i]);
-      } else if (s1 > s2) {
-        for (size_t i = n; i > 0; --i) assign(s1[i-1], s2[i-1]);
-      }
-      return s1;
+      return static_cast<char_type*>(memmove(s1, s2, n));
     }
     
     static char_type* copy(char_type* s1, const char_type* s2, size_t n) {
-      for (size_t i = 0; i < n; ++i) assign(s1[i], s2[i]);
+      memcpy(s1, s2, n);
       return s1;
     }
     
@@ -61,17 +72,9 @@ namespace std {
   };
 }
 
-// Other forward declarations to resolve template issues
-namespace std {
-  template<typename T> struct is_empty;
-  template<typename T> struct is_arithmetic;
-  template<typename T> struct is_convertible;
-  template<typename T> struct is_constructible;
-  template<typename T> class basic_string;
-  template<typename, typename> class basic_stringstream;
-  template<typename> class allocator;
-  template<typename T> struct is_class;
-  template<typename T> struct is_base_of;
-  template<typename T, typename U> struct is_same;
-  template<bool B, class T = void> struct enable_if;
-}
+// Ensure fmt uses our fixed char8_type definition
+#ifdef __cpp_char8_t
+#undef __cpp_char8_t
+#endif
+
+#endif // FMT_FIXES_H

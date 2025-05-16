@@ -59,21 +59,6 @@ const StatsScreen = ({ statData, activeCategory, onCategoryChange }) => {
     }
   };
 
-  // Get the column label based on category
-  const getColumnLabel = () => {
-    switch(activeCategory) {
-      case 'batting': return 'AVG';
-      case 'hits': return 'H';
-      case 'homeRuns': return 'HR';
-      case 'obp': return 'OB%';
-      case 'slg': return 'SLG%';
-      case 'era': return 'ERA';
-      case 'strikeoutsTotal': return 'SO';
-      case 'strikeoutsPerSeven': return 'K/7';
-      default: return 'Value';
-    }
-  };
-
   // Render a stat leader item
   const renderStatItem = ({ item }) => {
     const additionalStats = item.additionalStats || {};

@@ -13,8 +13,8 @@ const getApiBaseUrl = () => {
       'http://10.0.2.2:5003/api/softball'; // Android emulator special IP for host machine
   }
   
-  // For web - use the same logic as before
-  const isProd = process.env.NODE_ENV === 'production';
+  // For web - use Vite's import.meta.env instead of process.env
+  const isProd = import.meta.env.PROD;
   return isProd 
     ? '/.netlify/functions/api' 
     : 'http://localhost:5003/api/softball';
@@ -28,8 +28,50 @@ console.log('Platform:', Platform.OS);
 // Create axios instance for our backend with longer timeout
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000 // 30 seconds to account for puppeteer/scraping time
+  timeout: 30000, // 30 seconds to account for puppeteer/scraping time
+  retry: 3, // Allow 3 retries for failed requests
+  retryDelay: 1000, // Wait 1 second between retries
 });
+
+// Add request interceptor for logging
+apiClient.interceptors.request.use(
+  (config) => {
+    console.log(`Requesting: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for retry logic and error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { config } = error;
+    
+    // If config is undefined or we've already retried the maximum times, reject
+    if (!config || !config.retry) {
+      return Promise.reject(error);
+    }
+    
+    // Set a counter for retries
+    config.__retryCount = config.__retryCount || 0;
+    
+    // If we haven't hit the max retries, retry the request
+    if (config.__retryCount < config.retry) {
+      config.__retryCount += 1;
+      console.log(`Retrying request (${config.__retryCount}/${config.retry}): ${config.url}`);
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, config.retryDelay || 1000));
+      return apiClient(config);
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Fetch team rankings (ESPN poll)
@@ -42,7 +84,12 @@ export const fetchTeamRankings = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching team rankings:', error.message);
-    throw error;
+    // Return reasonable default/fallback data
+    return {
+      title: 'NCAA Division I Softball Rankings',
+      updated: new Date().toLocaleDateString(),
+      data: []
+    };
   }
 };
 
@@ -61,6 +108,51 @@ export const fetchStatLeaders = async (category = 'batting') => {
       console.error('Response status:', error.response.status);
       console.error('Response data:', error.response.data);
     }
-    throw error;
+    
+    // Return reasonable default/fallback data
+    return {
+      sport: 'Softball',
+      category: getCategoryTitle(category),
+      updated: new Date().toLocaleDateString(),
+      leaders: []
+    };
   }
+};
+
+/**
+ * Fetch games/scoreboard data
+ */
+export const fetchGames = async (date = 'current') => {
+  try {
+    console.log(`Frontend: Fetching games for date: ${date}`);
+    const response = await apiClient.get(`/games/${date}`);
+    console.log('Frontend: Received games data with', response.data?.games?.length || 0, 'games');
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching games for ${date}:`, error.message);
+    
+    // Return reasonable default/fallback data
+    return {
+      title: 'NCAA Division I Softball Scoreboard',
+      date: new Date().toLocaleDateString(),
+      updated: new Date().toLocaleTimeString(),
+      games: []
+    };
+  }
+};
+
+// Helper function to get category title
+const getCategoryTitle = (category) => {
+  const titles = {
+    batting: 'Batting Average',
+    hits: 'Hits',
+    homeRuns: 'Home Runs',
+    obp: 'On-Base Percentage',
+    slg: 'Slugging Percentage',
+    era: 'Earned Run Average',
+    strikeoutsPerSeven: 'Strikeouts Per Seven Innings',
+    strikeoutsTotal: 'Strikeouts'
+  };
+  
+  return titles[category] || 'Statistical Leaders';
 };
