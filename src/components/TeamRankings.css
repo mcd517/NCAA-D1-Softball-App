@@ -245,7 +245,7 @@
     margin-bottom: 15px;
     background-color: rgba(0,0,0,0.2);
     border-radius: 6px;
-    padding: 12px;
+    padding: 15px; /* Increased padding for more space */
     position: relative;
     border: 1px solid var(--border-color);
   }
@@ -253,9 +253,10 @@
   .mobile-card-view .rankings-table td, 
   .mobile-card-view .standings-table td {
     display: flex;
-    padding: 10px 8px; /* Increase padding for more breathing room */
+    padding: 10px 8px;
     text-align: right;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: center; /* Align content vertically */
   }
   
   .mobile-card-view .rankings-table td:before, 
@@ -266,7 +267,7 @@
     font-size: 0.7rem;
     color: var(--secondary-color);
     margin-right: auto;
-    min-width: 80px; /* Ensure consistent spacing for labels */
+    min-width: 85px; /* Slightly wider for better spacing */
   }
   
   .mobile-card-view .rankings-table td:last-child, 
@@ -274,23 +275,40 @@
     border-bottom: none;
   }
   
-  .mobile-card-view .rank {
+  /* Fixed team row positioning */
+  .mobile-card-view .rankings-table td.team,
+  .mobile-card-view .standings-table td.team {
+    margin-top: 5px;
+    margin-bottom: 15px;
+    padding-right: 45px; /* More space from rank badge */
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    font-size: 1.1rem;
+    order: -1; /* Always show at the top */
+  }
+  
+  /* Fixed rank badge positioning */
+  .mobile-card-view .rankings-table td.rank, 
+  .mobile-card-view .standings-table td.rank {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: rgba(var(--primary-rgb), 0.15);
+    top: 15px;
+    right: 15px;
+    width: auto;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: none;
+  }
+  
+  .mobile-card-view .rank {
     width: 32px;
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-  }
-  
-  .mobile-card-view .team {
-    font-size: 1.1rem;
-    margin: 6px 0 12px;
-    padding-right: 40px; /* Add padding to avoid overlap with rank */
+    background-color: rgba(var(--primary-rgb), 0.15);
+    font-weight: bold;
   }
   
   .toggle-view-mode {

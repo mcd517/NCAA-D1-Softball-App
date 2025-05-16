@@ -78,8 +78,10 @@
   overflow-x: auto;
   margin-bottom: 15px;
   -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
-  max-height: 70vh; /* Limit height on mobile views */
+  max-height: calc(100vh - 280px); /* Dynamic height based on viewport minus header space */
   overflow-y: auto; /* Enable vertical scrolling */
+  position: relative; /* Needed for proper scrolling behavior */
+  z-index: 10; /* Ensure it's above other elements */
 }
 
 .stats-table {
@@ -151,7 +153,10 @@
   }
 
   .stats-table-container {
-    max-height: 60vh; /* Slightly reduce max height on smaller screens */
+    max-height: calc(100vh - 340px); /* Adjust for additional header space on mobile */
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border-color); /* Add visible container border */
+    border-radius: 6px;
   }
   
   .stats-table th,
