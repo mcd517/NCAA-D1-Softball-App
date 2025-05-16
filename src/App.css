@@ -121,6 +121,7 @@ body {
   box-shadow: 0 8px 25px var(--shadow-color), 0 0 10px var(--light-shadow-color); /* Softer, layered shadow */
   margin-bottom: 30px;
   border: 1px solid rgba(255,255,255,0.1); /* Subtle border for glass effect */
+  overflow-y: visible; /* Allow the entire page to scroll instead of the section */
 }
 
 .section-container h2 {
@@ -322,6 +323,6 @@ body {
 }
 
 .rankings-section {
-  overflow: visible;
+  overflow: visible; /* Use default page scrolling */
   position: relative;
 }

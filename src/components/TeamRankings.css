@@ -5,8 +5,10 @@
   width: 100%;
   color: var(--text-color);
   /* Fix for scrolling issues */
-  overflow-y: visible;
-  touch-action: auto;
+  overflow-y: auto; /* Changed from visible to auto */
+  overflow-x: hidden;
+  touch-action: pan-y; /* Allow vertical touch scrolling */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .team-rankings h2 {
@@ -24,6 +26,8 @@
   margin-bottom: 20px;
   /* Ensure container allows scrolling */
   overflow-y: visible;
+  touch-action: pan-y; /* Allow vertical touch scrolling */
+  pointer-events: auto; /* Ensure pointer events work */
 }
 
 .team-card {
@@ -35,6 +39,7 @@
   cursor: pointer;
   overflow: hidden;
   position: relative;
+  touch-action: pan-y; /* Allow vertical touch scrolling */
 }
 
 .team-card:hover {
@@ -122,9 +127,12 @@
   margin-bottom: 4px;
   color: var(--text-color);
   font-size: 1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  
+  /* Allow team name to wrap and avoid truncation */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-wrap: break-word;
 }
 
 /* Emphasize the win-loss record */
