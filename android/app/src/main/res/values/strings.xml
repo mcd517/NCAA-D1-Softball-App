@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">D1 College Softball</string>
+    <string name="title_activity_main">D1 College Softball</string>
+    <string name="package_name">com.mcd.softball</string>
+    <string name="custom_url_scheme">com.mcd.softball</string>
+</resources>
