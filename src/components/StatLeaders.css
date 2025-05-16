@@ -77,11 +77,10 @@
 .stats-table-container {
   overflow-x: auto;
   margin-bottom: 15px;
-  -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
-  max-height: calc(100vh - 280px); /* Dynamic height based on viewport minus header space */
+  /* Remove the fixed height calculation that's causing problems */
+  height: 400px; /* Simple fixed height that works */
   overflow-y: auto; /* Enable vertical scrolling */
-  position: relative; /* Needed for proper scrolling behavior */
-  z-index: 10; /* Ensure it's above other elements */
+  -webkit-overflow-scrolling: touch; /* For smooth iOS scrolling */
 }
 
 .stats-table {
@@ -153,7 +152,7 @@
   }
 
   .stats-table-container {
-    max-height: calc(100vh - 340px); /* Adjust for additional header space on mobile */
+    height: 350px; /* Slightly shorter on mobile */
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border-color); /* Add visible container border */
     border-radius: 6px;
