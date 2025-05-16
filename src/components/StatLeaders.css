@@ -77,10 +77,16 @@
 .stats-table-container {
   overflow-x: auto;
   margin-bottom: 15px;
-  /* Remove the fixed height calculation that's causing problems */
-  height: 400px; /* Simple fixed height that works */
+  /* Modified to fix scrolling issues */
+  max-height: 60vh; /* Use viewport height instead of fixed height */
+  height: auto; /* Let it naturally size */
   overflow-y: auto; /* Enable vertical scrolling */
   -webkit-overflow-scrolling: touch; /* For smooth iOS scrolling */
+  /* Add this to make the container directly interactable */
+  touch-action: pan-y; /* Allow vertical touch scrolling explicitly */
+  position: relative; /* Create a new stacking context */
+  z-index: 1; /* Ensure it's above other elements */
+  padding-bottom: 10px; /* Add some bottom padding for better scrolling */
 }
 
 .stats-table {
@@ -152,7 +158,7 @@
   }
 
   .stats-table-container {
-    height: 350px; /* Slightly shorter on mobile */
+    max-height: 50vh; /* Use viewport-based height instead of fixed pixels */
     -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border-color); /* Add visible container border */
     border-radius: 6px;

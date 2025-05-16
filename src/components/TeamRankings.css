@@ -87,6 +87,11 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   max-width: 100%;
+  /* Add these properties to improve touch scrolling */
+  touch-action: auto; /* Enable all touch actions */
+  position: relative; /* Create stacking context */
+  z-index: 1; /* Ensure it's above other elements */
+  padding-bottom: 10px; /* Add some padding at bottom for better scrolling */
 }
 
 .rankings-table, .standings-table {
