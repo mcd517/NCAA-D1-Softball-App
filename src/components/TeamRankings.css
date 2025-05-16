@@ -253,7 +253,7 @@
   .mobile-card-view .rankings-table td, 
   .mobile-card-view .standings-table td {
     display: flex;
-    padding: 8px 4px;
+    padding: 10px 8px; /* Increase padding for more breathing room */
     text-align: right;
     border-bottom: 1px solid rgba(255,255,255,0.05);
   }
@@ -266,6 +266,7 @@
     font-size: 0.7rem;
     color: var(--secondary-color);
     margin-right: auto;
+    min-width: 80px; /* Ensure consistent spacing for labels */
   }
   
   .mobile-card-view .rankings-table td:last-child, 
@@ -289,6 +290,7 @@
   .mobile-card-view .team {
     font-size: 1.1rem;
     margin: 6px 0 12px;
+    padding-right: 40px; /* Add padding to avoid overlap with rank */
   }
   
   .toggle-view-mode {

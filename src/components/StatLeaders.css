@@ -77,6 +77,9 @@
 .stats-table-container {
   overflow-x: auto;
   margin-bottom: 15px;
+  -webkit-overflow-scrolling: touch; /* Improve scrolling on iOS */
+  max-height: 70vh; /* Limit height on mobile views */
+  overflow-y: auto; /* Enable vertical scrolling */
 }
 
 .stats-table {
@@ -145,6 +148,10 @@
   .category-tab {
     width: 100%;
     max-width: 250px;
+  }
+
+  .stats-table-container {
+    max-height: 60vh; /* Slightly reduce max height on smaller screens */
   }
   
   .stats-table th,
