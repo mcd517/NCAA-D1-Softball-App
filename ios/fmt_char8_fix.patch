@@ -1,11 +1,28 @@
---- Pods/fmt/include/fmt/core.h
-+++ Pods/fmt/include/fmt/core.h
-@@ -140,7 +140,7 @@
- // A lightweight Unicode character type.
- // It is a Character concept in C++20 if compiled as C++20, otherwise a C++17
- // concept.
--using char8_type = char8_t;
-+using char8_type = unsigned char;
+diff --git a/ios/Pods/fmt/include/fmt/core.h b/ios/Pods/fmt/include/fmt/core.h
+index xxxxxxx..xxxxxxx 100644
+--- a/ios/Pods/fmt/include/fmt/core.h
++++ b/ios/Pods/fmt/include/fmt/core.h
+@@ -139,7 +139,7 @@
+ #ifdef __cpp_char8_t
+ using char8_type = unsigned char;  // Fix: use unsigned char instead of char8_t
  #else
- enum char8_t : unsigned char {};
- using char8_type = char8_t;
+-enum char8_type : unsigned char {};
++using char8_type = unsigned char;  // Fix: use the same type in both branches
+ #endif
+ }  // namespace internal
+ 
+@@ -173,4 +173,14 @@
+ template <> struct is_char<char32_t> : std::true_type {};
+ 
++// Add std::char_traits specialization for fmt::internal::char8_type
++namespace std {
++  template <>
++  struct char_traits<fmt::internal::char8_type> {
++    using char_type = fmt::internal::char8_type;
++    // Minimal implementation to satisfy compilation
++    static size_t length(const char_type* s) { return char_traits<char>::length(reinterpret_cast<const char*>(s)); }
++  };
++}
++
+ /**
+   \rst
