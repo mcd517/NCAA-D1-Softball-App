@@ -170,22 +170,32 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  /* Indent details to the right of the rank badge */
+  padding-left: 50px;
 }
 
 .team-detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+
+  /* Allow long text to wrap if needed */
+  flex-wrap: wrap;
 }
 
 .detail-label {
   color: var(--secondary-color);
   font-size: 0.9rem;
+  /* Prevent truncation */
+  white-space: normal;
 }
 
 .detail-value {
   font-weight: 600;
   color: var(--text-color);
+  /* Prevent truncation */
+  white-space: normal;
 }
 
 .detail-hint, .expand-hint {
