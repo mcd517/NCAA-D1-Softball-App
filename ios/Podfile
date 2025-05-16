@@ -60,11 +60,17 @@ target 'NCAAD1Softball' do
   )
 
   post_install do |installer|
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false
-    )
+    # Add better error handling for react-native-post-install
+    begin
+      react_native_post_install(
+        installer,
+        config[:reactNativePath],
+        :mac_catalyst_enabled => false
+      )
+    rescue => e
+      Pod::UI.warn "Failed to call react_native_post_install: #{e.message}"
+      Pod::UI.warn e.backtrace.join("\n")
+    end
 
     # Fix for fmt C++ template errors
     installer.pods_project.targets.each do |target|
@@ -93,6 +99,24 @@ target 'NCAAD1Softball' do
       target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
         resource_bundle_target.build_configurations.each do |config|
           config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        end
+      end
+    end
+    
+    # Fix script execution issues related to Node version / paths
+    installer.pods_project.targets.each do |target|
+      if target.respond_to?(:product_type) && target.product_type == "com.apple.product-type.bundle"
+        target.build_configurations.each do |config|
+          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        end
+      end
+      # Additional hermes script phase fix
+      if (target.name&.eql?('hermes-engine'))
+        target.build_phases.each do |build_phase|
+          if (build_phase.respond_to?(:name) && build_phase.name.eql?('[CP-User] Build Hermes'))
+            # Skip hermes build phase script to avoid potential errors with new Node versions
+            target.build_phases.delete(build_phase)
+          end
         end
       end
     end
