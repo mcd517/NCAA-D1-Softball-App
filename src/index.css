@@ -14,8 +14,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  /* Make background image more visible by reducing overlay opacity */
-  background: linear-gradient(rgba(10, 10, 30, 0.35), rgba(10, 10, 30, 0.35)), url('/softball-bg.jpg') center/cover no-repeat;
+  /* Make background image fully visible with minimal overlay */
+  background: url('/softball-bg.jpg') center/cover no-repeat;
   background-attachment: fixed;
   color: #ffffff;
 }
