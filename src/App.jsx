@@ -196,8 +196,8 @@ function App() {
         </div>
       );
       
-      // Only apply pull-to-refresh on mobile devices
-      if (isMobile) {
+      // Only apply pull-to-refresh on mobile devices for Rankings tab
+      if (isMobile && activeTab === 'rankings') {
         return (
           <PullToRefresh 
             onRefresh={handleRefresh}

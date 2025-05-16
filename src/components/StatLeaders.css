@@ -77,16 +77,9 @@
 .stats-table-container {
   overflow-x: auto;
   margin-bottom: 15px;
-  /* Modified to fix scrolling issues */
-  max-height: 60vh; /* Use viewport height instead of fixed height */
-  height: auto; /* Let it naturally size */
-  overflow-y: auto; /* Enable vertical scrolling */
-  -webkit-overflow-scrolling: touch; /* For smooth iOS scrolling */
-  /* Add this to make the container directly interactable */
-  touch-action: pan-y; /* Allow vertical touch scrolling explicitly */
-  position: relative; /* Create a new stacking context */
-  z-index: 1; /* Ensure it's above other elements */
-  padding-bottom: 10px; /* Add some bottom padding for better scrolling */
+  /* Let the table expand naturally and scroll the page vertically */
+  /* No height constraints or vertical overflow on container */
+  -webkit-overflow-scrolling: touch; /* Smooth iOS horizontal scrolling */
 }
 
 .stats-table {
@@ -158,10 +151,10 @@
   }
 
   .stats-table-container {
-    max-height: 50vh; /* Use viewport-based height instead of fixed pixels */
+    overflow-x: auto;
+    margin-bottom: 15px;
+    /* No vertical height limits or overflow on mobile */
     -webkit-overflow-scrolling: touch;
-    border: 1px solid var(--border-color); /* Add visible container border */
-    border-radius: 6px;
   }
   
   .stats-table th,
