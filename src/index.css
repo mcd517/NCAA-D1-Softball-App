@@ -14,14 +14,28 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  /* Make background image fully visible with minimal overlay */
   background: url('/softball-bg.jpg') center/cover no-repeat;
   background-attachment: fixed;
   color: #ffffff;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(20, 30, 50, 0.10); /* Very slight overlay, no blur */
+  pointer-events: none;
+  z-index: 0;
 }
 
 #root {
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 @media (prefers-color-scheme: dark) {
