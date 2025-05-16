@@ -151,16 +151,16 @@ function App() {
   // Safely render the app even if some components might have issues
   const renderContent = () => {
     try {
-      // Create page content without PullToRefresh
+      // Create page content with modern header
       const content = (
         <div className="app-container">
-          <header className="app-header">
+          <div className="modern-header">
             <h1>NCAA D1 College Softball Stats & Rankings</h1>
             <p className="data-update-info">
               Data updated: {new Date().toLocaleDateString()}
               {refreshing && ' (Refreshing...)'}
             </p>
-          </header>
+          </div>
 
           <nav className="app-navigation">
             <ul>
