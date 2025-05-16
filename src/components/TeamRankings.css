@@ -1,18 +1,216 @@
 .team-rankings {
-  /* background-color: #fff; -- Removed to inherit from section-container */
   border-radius: 8px;
-  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); -- Inherit from section-container */
   padding: 20px;
   margin-bottom: 30px;
   width: 100%;
-  color: var(--text-color); /* Ensure text is light */
+  color: var(--text-color);
 }
 
 .team-rankings h2 {
-  color: var(--primary-color); /* Use theme primary color */
+  color: var(--primary-color);
   margin-bottom: 20px;
   text-align: center;
   font-size: 1.8rem;
+}
+
+/* Card-based layout styling */
+.rankings-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.team-card {
+  background-color: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.team-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.team-card.expanded {
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.1);
+}
+
+.team-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.team-rank-container {
+  position: relative;
+  margin-right: 6px;
+}
+
+.team-rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.2);
+  color: var(--primary-color);
+  font-weight: 700;
+  border-radius: 50%;
+  font-size: 1.1rem;
+}
+
+.rank-change {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.rank-change.improved {
+  color: #5cb85c;
+}
+
+.rank-change.dropped {
+  color: #d9534f;
+}
+
+.rank-change.same {
+  color: #f0ad4e;
+}
+
+.team-info {
+  flex: 1;
+  min-width: 0; /* Prevent flex item from growing beyond container */
+}
+
+.team-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-color);
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-record {
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+}
+
+.team-points {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+  text-align: center;
+}
+
+.points-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.points-label {
+  font-size: 0.8rem;
+  color: var(--secondary-color);
+}
+
+.team-details {
+  margin-top: 12px;
+  border-top: 1px solid rgba(var(--primary-rgb, 107, 178, 255), 0.2);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.team-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-label {
+  color: var(--secondary-color);
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.detail-hint, .expand-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--secondary-color);
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.loading {
+  text-align: center;
+  padding: 30px;
+  font-style: italic;
+  color: var(--secondary-color);
+}
+
+.update-info {
+  margin-top: 15px;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  font-style: italic;
+}
+
+/* Top 25 teams styling */
+.team-card:nth-child(-n+10) .team-rank {
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.25);
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.team-card:nth-child(-n+5) .team-rank {
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.35);
+  color: var(--primary-color);
+  font-weight: 800;
+}
+
+.team-card:first-child .team-rank {
+  background-color: var(--primary-color);
+  color: var(--card-background);
+  font-weight: 900;
+}
+
+/* Desktop optimizations */
+@media (min-width: 768px) {
+  .rankings-cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .team-card {
+    padding: 14px;
+  }
+  
+  .team-name {
+    font-size: 0.95rem;
+  }
 }
 
 .view-toggle {
@@ -147,21 +345,6 @@
 
 .team-column {
   min-width: 180px;
-}
-
-.loading {
-  text-align: center;
-  padding: 30px;
-  font-style: italic;
-  color: var(--secondary-color); /* Use theme secondary color */
-}
-
-.update-info {
-  margin-top: 15px;
-  text-align: right;
-  font-size: 0.85rem;
-  color: var(--secondary-color); /* Use theme secondary color */
-  font-style: italic;
 }
 
 /* Top 25 teams styling - ensure these are visible on dark background */

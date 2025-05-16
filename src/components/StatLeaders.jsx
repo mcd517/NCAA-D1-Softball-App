@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './StatLeaders.css';
 
 const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
-  // Use the activeCategory prop from parent instead of local state
-  // This ensures synchronization between parent and child components
+  // Add state to track expanded player details
+  const [expandedPlayer, setExpandedPlayer] = useState(null);
   
   const categories = [
     // Batting Categories
-    { id: 'batting', label: 'Batting Average', group: 'batting' },
+    { id: 'batting', label: 'Batting AVG', group: 'batting' },
     { id: 'hits', label: 'Hits', group: 'batting' },
     { id: 'homeRuns', label: 'Home Runs', group: 'batting' },
     { id: 'obp', label: 'On-Base %', group: 'batting' },
@@ -21,7 +21,7 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
   
   const handleCategoryChange = (categoryId) => {
     if (onCategoryChange) {
-      console.log('StatLeaders: Changing category to', categoryId);
+      setExpandedPlayer(null); // Reset expanded player when changing category
       onCategoryChange(categoryId);
     }
   };
@@ -32,41 +32,52 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
     statData.isLoading || 
     !Array.isArray(statData.leaders) || 
     statData.leaders.length === 0;
+    
+  // Function to toggle player details expansion
+  const togglePlayerDetails = (playerId) => {
+    if (expandedPlayer === playerId) {
+      setExpandedPlayer(null);
+    } else {
+      setExpandedPlayer(playerId);
+    }
+  };
   
   // Filter categories by group to display them in separate sections
   const battingCategories = categories.filter(cat => cat.group === 'batting');
   const pitchingCategories = categories.filter(cat => cat.group === 'pitching');
   
-  // Always render the category tabs, even during loading
+  // Horizontal scrolling category tabs for better mobile experience
   const renderCategoryTabs = () => (
-    <div className="category-sections">
-      <div className="category-section">
-        <h4 className="section-title">Batting Stats</h4>
-        <div className="category-tabs">
-          {battingCategories.map(category => (
-            <button 
-              key={category.id}
-              className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
-              onClick={() => handleCategoryChange(category.id)}
-            >
-              {category.label}
-            </button>
-          ))}
+    <div className="category-container">
+      <div className="category-scroll-container">
+        <div className="category-group">
+          <h4 className="category-group-title">Batting</h4>
+          <div className="scroll-tabs">
+            {battingCategories.map(category => (
+              <button 
+                key={category.id}
+                className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
+                onClick={() => handleCategoryChange(category.id)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      
-      <div className="category-section">
-        <h4 className="section-title">Pitching Stats</h4>
-        <div className="category-tabs">
-          {pitchingCategories.map(category => (
-            <button 
-              key={category.id}
-              className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
-              onClick={() => handleCategoryChange(category.id)}
-            >
-              {category.label}
-            </button>
-          ))}
+        
+        <div className="category-group">
+          <h4 className="category-group-title">Pitching</h4>
+          <div className="scroll-tabs">
+            {pitchingCategories.map(category => (
+              <button 
+                key={category.id}
+                className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
+                onClick={() => handleCategoryChange(category.id)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -88,11 +99,11 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
     }
   };
 
-  // Get the column label based on category
-  const getColumnLabel = () => {
+  // Get the stat label based on category
+  const getStatLabel = () => {
     switch(activeCategory) {
       case 'batting': return 'AVG';
-      case 'hits': return 'H';
+      case 'hits': return 'Hits';
       case 'homeRuns': return 'HR';
       case 'obp': return 'OB%';
       case 'slg': return 'SLG%';
@@ -103,148 +114,121 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
     }
   };
 
-  // Render the correct additional stat columns based on category
-  const renderAdditionalStatHeaders = () => {
-    switch(activeCategory) {
-      case 'batting':
-        return (
-          <>
-            <th>G</th>
-            <th>AB</th>
-            <th>H</th>
-          </>
-        );
-      case 'hits':
-        return (
-          <>
-            <th>G</th>
-            {/* Removed AVG column for Hits */}
-          </>
-        );
-      case 'homeRuns':
-        return (
-          <>
-            <th>G</th>
-            <th>HR/G</th>
-          </>
-        );
-      case 'obp':
-        return (
-          <>
-            <th>G</th>
-            <th>AB</th>
-            <th>H</th>
-            <th>BB</th>
-            <th>HBP</th>
-          </>
-        );
-      case 'slg':
-        return (
-          <>
-            <th>G</th>
-            <th>AB</th>
-            <th>TB</th>
-          </>
-        );
-      case 'era':
-        return (
-          <>
-            <th>APP</th>
-            <th>IP</th>
-            <th>ER</th>
-          </>
-        );
-      case 'strikeoutsPerSeven':
-        return (
-          <>
-            <th>APP</th>
-            <th>IP</th>
-            <th>SO</th>
-          </>
-        );
-      case 'strikeoutsTotal':
-        return (
-          <>
-            <th>APP</th>
-            {/* removed IP and K/7 for Strikeouts */}
-          </>
-        );
-      default:
-        return null;
-    }
-  };
-
-  // Render additional stat values for a leader
-  const renderAdditionalStatValues = (leader) => {
+  // Render a card for each stat leader
+  const renderStatLeaderCard = (leader) => {
+    const isExpanded = expandedPlayer === `${leader.rank}-${leader.player.name}`;
     const additionalStats = leader.additionalStats || {};
+    const playerId = `${leader.rank}-${leader.player.name}`;
+    
+    // Get relevant stats based on category
+    let relevantStats = [];
     
     switch(activeCategory) {
       case 'batting':
-        return (
-          <>
-            <td>{additionalStats.g || '-'}</td>
-            <td>{additionalStats.ab || '-'}</td>
-            <td>{additionalStats.h || '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Games', value: additionalStats.g || '-' },
+          { label: 'At Bats', value: additionalStats.ab || '-' },
+          { label: 'Hits', value: additionalStats.h || '-' }
+        ];
+        break;
       case 'hits':
-        return (
-          <>
-            <td>{additionalStats.g || '-'}</td>
-            {/* Removed AVG cell for Hits */}
-          </>
-        );
+        relevantStats = [
+          { label: 'Games', value: additionalStats.g || '-' },
+          { label: 'Batting AVG', value: additionalStats.avg ? additionalStats.avg.toFixed(3).replace(/^0+/, '') : '-' }
+        ];
+        break;
       case 'homeRuns':
-        return (
-          <>
-            <td>{additionalStats.g || '-'}</td>
-            <td>{additionalStats.hr_g ? additionalStats.hr_g.toFixed(2) : '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Games', value: additionalStats.g || '-' },
+          { label: 'HR/Game', value: additionalStats.hr_g ? additionalStats.hr_g.toFixed(2) : '-' }
+        ];
+        break;
       case 'obp':
-        return (
-          <>
-            <td>{additionalStats.g || '-'}</td>
-            <td>{additionalStats.ab || '-'}</td>
-            <td>{additionalStats.h || '-'}</td>
-            <td>{additionalStats.bb || '-'}</td>
-            <td>{additionalStats.hbp || '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Games', value: additionalStats.g || '-' },
+          { label: 'At Bats', value: additionalStats.ab || '-' },
+          { label: 'Hits', value: additionalStats.h || '-' },
+          { label: 'Walks', value: additionalStats.bb || '-' },
+          { label: 'HBP', value: additionalStats.hbp || '-' }
+        ];
+        break;
       case 'slg':
-        return (
-          <>
-            <td>{additionalStats.g || '-'}</td>
-            <td>{additionalStats.ab || '-'}</td>
-            <td>{additionalStats.tb || '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Games', value: additionalStats.g || '-' },
+          { label: 'At Bats', value: additionalStats.ab || '-' },
+          { label: 'Total Bases', value: additionalStats.tb || '-' }
+        ];
+        break;
       case 'era':
-        return (
-          <>
-            <td>{additionalStats.app || '-'}</td>
-            <td>{additionalStats.ip || '-'}</td>
-            <td>{additionalStats.er || '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Appearances', value: additionalStats.app || '-' },
+          { label: 'Innings', value: additionalStats.ip || '-' },
+          { label: 'Earned Runs', value: additionalStats.er || '-' }
+        ];
+        break;
       case 'strikeoutsPerSeven':
-        return (
-          <>
-            <td>{additionalStats.app || '-'}</td>
-            <td>{additionalStats.ip || '-'}</td>
-            <td>{additionalStats.so || '-'}</td>
-          </>
-        );
+        relevantStats = [
+          { label: 'Appearances', value: additionalStats.app || '-' },
+          { label: 'Innings', value: additionalStats.ip || '-' },
+          { label: 'Strikeouts', value: additionalStats.so || '-' }
+        ];
+        break;
       case 'strikeoutsTotal':
-        return (
-          <>
-            <td>{additionalStats.app || '-'}</td>
-            {/* removed IP and K/7 values */}
-          </>
-        );
+        relevantStats = [
+          { label: 'Appearances', value: additionalStats.app || '-' },
+          { label: 'Innings', value: additionalStats.ip || '-' }
+        ];
+        break;
       default:
-        return null;
+        break;
     }
+
+    return (
+      <div 
+        key={playerId}
+        className={`stat-card ${isExpanded ? 'expanded' : ''}`}
+        onClick={() => togglePlayerDetails(playerId)}
+      >
+        <div className="stat-card-header">
+          <span className="rank">{leader.rank}</span>
+          <div className="player-info">
+            <div className="player-name">{leader.player.name}</div>
+            <div className="player-team">{leader.team.name}</div>
+          </div>
+          <div className="stat-value-container">
+            <div className="stat-value">{formatValue(leader.value, activeCategory)}</div>
+            <div className="stat-label">{getStatLabel()}</div>
+          </div>
+        </div>
+        
+        <div className="card-details">
+          <div className="player-metadata">
+            <span className="meta-item">
+              <span className="meta-label">Class:</span> {leader.player.classYear || 'N/A'}
+            </span>
+            <span className="meta-item">
+              <span className="meta-label">Position:</span> {leader.player.position || 'N/A'}
+            </span>
+          </div>
+          
+          {isExpanded && (
+            <div className="additional-stats">
+              {relevantStats.map((stat, index) => (
+                <div className="stat-row" key={index}>
+                  <span className="stat-row-label">{stat.label}:</span>
+                  <span className="stat-row-value">{stat.value}</span>
+                </div>
+              ))}
+              <div className="expand-hint">Tap to collapse</div>
+            </div>
+          )}
+          
+          {!isExpanded && (
+            <div className="expand-hint">Tap for details</div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -260,33 +244,8 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
         <>
           <h3 className="category-title">{statData.category}</h3>
           
-          <div className="stats-table-container">
-            <table className="stats-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Team</th>
-                  <th>Class</th>
-                  <th>Position</th>
-                  {renderAdditionalStatHeaders()}
-                  <th>{getColumnLabel()}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statData.leaders.map((leader) => (
-                  <tr key={`${leader.rank}-${leader.player.name}-${leader.team.name}`}>
-                    <td className="rank">{leader.rank}</td>
-                    <td>{leader.player.name}</td>
-                    <td>{leader.team.name}</td>
-                    <td>{leader.player.classYear || '-'}</td>
-                    <td>{leader.player.position}</td>
-                    {renderAdditionalStatValues(leader)}
-                    <td className="stat-value">{formatValue(leader.value, activeCategory)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="stat-cards-container">
+            {statData.leaders.map(renderStatLeaderCard)}
           </div>
           
           <div className="update-info">
