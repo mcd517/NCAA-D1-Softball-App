@@ -7,38 +7,13 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 ENV['RCT_NEW_ARCH_ENABLED'] = podfile_properties['newArchEnabled'] == 'true' ? '1' : '0'
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 
-# Force specific C++ flags for the fmt library
-ENV['RCT_FOLLY_CFLAGS'] = '-DFMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0'
-
 platform :ios, podfile_properties['ios.deploymentTarget'] || '13.4'
 install! 'cocoapods',
   :deterministic_uuids => false
 
 prepare_react_native_project!
 
-# If you are using a `react-native-flipper` your iOS build will fail when `NO_FLIPPER=1` is set.
-# because `react-native-flipper` depends on (FlipperKit,...), which will be excluded. To fix this,
-# you can also exclude `react-native-flipper` in `react-native.config.js`
-#
-# ```js
-# module.exports = {
-#   dependencies: {
-#     ...(process.env.NO_FLIPPER ? { 'react-native-flipper': { platforms: { ios: null } } } : {}),
-#   }
-# }
-# ```
 flipper_config = FlipperConfiguration.disabled
-if ENV['NO_FLIPPER'] == '1' then
-  # Explicitly disabled through environment variables
-  flipper_config = FlipperConfiguration.disabled
-elsif podfile_properties.key?('ios.flipper') then
-  # Configure Flipper in Podfile.properties.json
-  if podfile_properties['ios.flipper'] == 'true' then
-    flipper_config = FlipperConfiguration.enabled(["Debug", "Release"])
-  elsif podfile_properties['ios.flipper'] != 'false' then
-    flipper_config = FlipperConfiguration.enabled(["Debug", "Release"], { 'Flipper' => podfile_properties['ios.flipper'] })
-  end
-end
 
 target 'NCAAD1Softball' do
   use_expo_modules!
@@ -47,65 +22,37 @@ target 'NCAAD1Softball' do
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
 
-  # Override the fmt library's source files with our patched version
-  pod 'fmt', :modular_headers => true
-
+  # Disable Hermes to avoid the C++ template errors
   use_react_native!(
     :path => config[:reactNativePath],
-    :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
-    # An absolute path to your application root.
+    :hermes_enabled => false,
     :app_path => "#{Pod::Config.instance.installation_root}/..",
-    # Note that if you have use_frameworks! enabled, Flipper will not work if enabled
     :flipper_configuration => flipper_config
   )
 
   post_install do |installer|
-    # Apply custom patches to fix fmt template issues
-    installer.pods_project.targets.each do |target|
-      if target.name == "fmt"
-        puts "Applying fmt char8_type patch..."
-        patch_file = File.join(__dir__, "fmt_char8_fix.patch")
-        if File.exist?(patch_file)
-          # Use -N to ignore failures if the patch doesn't match exactly
-          system("cd #{installer.sandbox.root} && patch -p0 -N < #{patch_file}")
-        end
-      end
-    end
-
-    # Skip the problematic hermes script phase that causes errors
-    installer.pods_project.targets.each do |target|
-      if target.name == "hermes-engine"
-        target.build_phases.each do |build_phase|
-          if build_phase.respond_to?(:name) && build_phase.name == "[CP-User] Build Hermes"
-            target.build_phases.delete(build_phase)
-          end
-        end
-      end
-    end
-
-    # Apply build settings for all targets
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        # Set compiler standard
-        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
-        
-        # Add compiler flags to all targets
-        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -DFMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0'
-        
-        # Add preprocessor definitions
-        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0'
-      end
-    end
-
-    # Standard React Native post-install script
+    # Apply the React Native recommended post-install script
     react_native_post_install(
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
 
-    # Code signing settings for resource bundles
+    # Set C++17 standard for all targets to avoid fmt template errors
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17' 
+        
+        # Add the fmt flag to disable the problematic template feature
+        if config.build_settings['OTHER_CPLUSPLUSFLAGS']
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] += ' -DFMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0'
+        else
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '-DFMT_USE_NONTYPE_TEMPLATE_PARAMETERS=0'
+        end
+      end
+    end
+
+    # Required for Xcode 14+
     installer.target_installation_results.pod_target_installation_results
       .each do |pod_name, target_installation_result|
       target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
