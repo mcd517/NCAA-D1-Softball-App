@@ -4,7 +4,9 @@
   margin-bottom: 30px;
   width: 100%;
   color: var(--text-color);
-  /* Fix for scrolling issues */
+  background: rgba(20, 30, 50, 0.97); /* Dark, solid background */
+  box-shadow: 0 4px 16px 0 rgba(0,0,0,0.18);
+  /* Remove any blur or translucency */
   overflow-y: auto; /* Changed from visible to auto */
   overflow-x: hidden;
   touch-action: pan-y; /* Allow vertical touch scrolling */
@@ -31,7 +33,7 @@
 }
 
 .team-card {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: rgba(20, 30, 50, 0.98); /* Dark, solid */
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
@@ -40,6 +42,7 @@
   overflow: hidden;
   position: relative;
   touch-action: pan-y; /* Allow vertical touch scrolling */
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.18);
 }
 
 .team-card:hover {
@@ -49,7 +52,7 @@
 }
 
 .team-card.expanded {
-  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.1);
+  background-color: rgba(30, 40, 60, 1); /* Slightly lighter for expanded */
 }
 
 /* Make ranking more prominent with a badge on the left side */

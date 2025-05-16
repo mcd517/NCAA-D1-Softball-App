@@ -3,6 +3,8 @@
   padding: 20px;
   margin-bottom: 30px;
   color: var(--text-color);
+  background: rgba(20, 30, 50, 0.97); /* Dark, solid background */
+  box-shadow: 0 4px 16px 0 rgba(0,0,0,0.18);
 }
 
 .stat-leaders h2 {
@@ -90,13 +92,14 @@
 }
 
 .stat-card {
-  background-color: rgba(0, 0, 0, 0.25);
+  background-color: rgba(20, 30, 50, 0.98); /* Dark, solid */
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   transition: all 0.3s ease;
   cursor: pointer;
   overflow: hidden;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.18);
 }
 
 .stat-card:hover {
@@ -106,7 +109,7 @@
 }
 
 .stat-card.expanded {
-  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.1);
+  background-color: rgba(30, 40, 60, 1); /* Slightly lighter for expanded */
 }
 
 .stat-card-header {
@@ -195,7 +198,7 @@
 }
 
 .additional-stats {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(20, 30, 50, 0.92); /* Match card background */
   border-radius: 8px;
   padding: 12px;
   margin-top: 12px;

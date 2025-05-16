@@ -1,9 +1,10 @@
 .scoreboard {
-  background-color: #fff;
+  background-color: rgba(20, 30, 50, 0.97); /* Dark, solid background */
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   padding: 20px;
   margin-bottom: 30px;
+  color: #fff;
 }
 
 .scoreboard h2 {
@@ -102,11 +103,12 @@
 }
 
 .game-card {
-  background-color: #f8f8f8;
+  background-color: rgba(20, 30, 50, 0.98); /* Dark, solid */
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   transition: transform 0.2s;
+  color: #fff;
 }
 
 .game-card:hover {
@@ -193,9 +195,9 @@
 .no-games {
   text-align: center;
   padding: 30px;
-  color: #777;
+  color: #fff;
   font-style: italic;
-  background-color: #f8f8f8;
+  background-color: rgba(20, 30, 50, 0.92); /* Match card background */
   border-radius: 8px;
   margin: 20px 0;
 }
