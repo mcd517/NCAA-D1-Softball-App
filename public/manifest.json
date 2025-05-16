@@ -1,0 +1,29 @@
+{
+  "name": "NCAA D1 Softball Stats & Rankings",
+  "short_name": "D1 Softball",
+  "description": "Get the latest NCAA Division 1 Softball rankings, statistics, and tournament information",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#192841",
+  "theme_color": "#6bb2ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/softball-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/softball-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/softball-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

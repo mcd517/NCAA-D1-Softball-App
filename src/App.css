@@ -21,6 +21,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
 }
 
 body {
@@ -189,6 +190,7 @@ body {
   font-size: 0.95rem;
 }
 
+/* Enhanced Mobile Responsiveness */
 @media (max-width: 768px) {
   .data-grid {
     grid-template-columns: 1fr;
@@ -214,4 +216,92 @@ body {
     border-bottom: none;
     border-left: 3px solid var(--primary-color);
   }
+  
+  .section-container {
+    padding: 20px 15px; /* Reduce padding on mobile */
+  }
+  
+  .app-navigation button {
+    padding: 15px 22px; /* Larger touch target */
+  }
+}
+
+/* Small Mobile Devices */
+@media (max-width: 480px) {
+  .app-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .section-container h2 {
+    font-size: 1.6rem;
+  }
+  
+  .app-container {
+    padding: 10px;
+  }
+  
+  .app-navigation button {
+    padding: 16px 22px; /* Even larger touch target for very small screens */
+  }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) {
+  .app-navigation button, 
+  .toggle-btn,
+  select,
+  button {
+    min-height: 44px; /* Apple's recommended minimum touch target size */
+  }
+  
+  /* Install prompt for PWA */
+  .install-pwa-prompt {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--card-background);
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+    backdrop-filter: var(--card-backdrop-filter);
+    -webkit-backdrop-filter: var(--card-backdrop-filter);
+  }
+  
+  .install-pwa-prompt button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 15px;
+    font-weight: 500;
+  }
+  
+  .install-pwa-prompt .close-prompt {
+    background: none;
+    color: var(--secondary-color);
+    border: none;
+    font-size: 1.5rem;
+    padding: 5px 10px;
+  }
+}
+
+/* Pull to Refresh Styling */
+.refreshing-indicator {
+  text-align: center;
+  padding: 15px;
+  color: var(--primary-color);
+  font-weight: 500;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ptr-element {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }

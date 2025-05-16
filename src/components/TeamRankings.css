@@ -85,6 +85,7 @@
 
 .rankings-table-container {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .rankings-table, .standings-table {
@@ -188,5 +189,111 @@
   
   .team-column {
     min-width: 150px;
+  }
+  
+  .view-toggle {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .toggle-btn {
+    width: 100%;
+    max-width: none;
+    padding: 12px 10px;
+  }
+  
+  .conference-selector {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .conference-selector select {
+    width: 100%;
+    max-width: none;
+    padding: 12px;
+  }
+}
+
+/* Extra Small Mobile Devices */
+@media (max-width: 480px) {
+  .rankings-table th, .standings-table th,
+  .rankings-table td, .standings-table td {
+    padding: 8px 6px;
+  }
+  
+  /* Card-style tables for very small screens */
+  .mobile-card-view .rankings-table, 
+  .mobile-card-view .standings-table {
+    display: block;
+    border: none;
+  }
+  
+  .mobile-card-view .rankings-table thead, 
+  .mobile-card-view .standings-table thead {
+    display: none;
+  }
+  
+  .mobile-card-view .rankings-table tbody, 
+  .mobile-card-view .standings-table tbody,
+  .mobile-card-view .rankings-table tr, 
+  .mobile-card-view .standings-table tr {
+    display: block;
+  }
+  
+  .mobile-card-view .rankings-table tr, 
+  .mobile-card-view .standings-table tr {
+    margin-bottom: 15px;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    padding: 12px;
+    position: relative;
+    border: 1px solid var(--border-color);
+  }
+  
+  .mobile-card-view .rankings-table td, 
+  .mobile-card-view .standings-table td {
+    display: flex;
+    padding: 8px 4px;
+    text-align: right;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  
+  .mobile-card-view .rankings-table td:before, 
+  .mobile-card-view .standings-table td:before {
+    content: attr(data-label);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    color: var(--secondary-color);
+    margin-right: auto;
+  }
+  
+  .mobile-card-view .rankings-table td:last-child, 
+  .mobile-card-view .standings-table td:last-child {
+    border-bottom: none;
+  }
+  
+  .mobile-card-view .rank {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(var(--primary-rgb), 0.15);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .mobile-card-view .team {
+    font-size: 1.1rem;
+    margin: 6px 0 12px;
+  }
+  
+  .toggle-view-mode {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 15px;
   }
 }

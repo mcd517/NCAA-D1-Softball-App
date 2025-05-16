@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import PullToRefresh from 'react-pull-to-refresh';
 import './App.css'
 import { fetchTeamRankings, fetchStatLeaders } from './services/softballAPI';
 import TeamRankings from './components/TeamRankings';
 import StatLeaders from './components/StatLeaders';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 
 function App() {
   const [rankings, setRankings] = useState(null);
@@ -11,7 +13,26 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('rankings'); // Default to rankings tab
+  const [refreshing, setRefreshing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
+  // Check if device is mobile
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    // Initial check
+    checkIfMobile();
+    
+    // Add event listener for resize
+    window.addEventListener('resize', checkIfMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+  
+  // Fetch data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -48,6 +69,39 @@ function App() {
 
     fetchData();
   }, []);
+
+  // Handle refreshing data
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    
+    try {
+      // Refresh rankings
+      try {
+        const rankingsData = await fetchTeamRankings();
+        setRankings(rankingsData);
+      } catch (rankingsError) {
+        console.error('Error refreshing rankings:', rankingsError);
+      }
+
+      // Refresh stats data
+      try {
+        const refreshedStatData = await fetchStatLeaders(activeStatCategory);
+        setStatData(refreshedStatData);
+      } catch (statsError) {
+        console.error('Error refreshing stats:', statsError);
+      }
+      
+      // Success message (could show a toast notification here)
+      console.log('Data refreshed successfully');
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+    } finally {
+      setRefreshing(false);
+    }
+    
+    // Return promise for PTR component
+    return new Promise((resolve) => setTimeout(resolve, 500));
+  };
 
   // Handle stat category change
   const handleCategoryChange = async (category) => {
@@ -97,12 +151,13 @@ function App() {
   // Safely render the app even if some components might have issues
   const renderContent = () => {
     try {
-      return (
+      const content = (
         <div className="app-container">
           <header className="app-header">
             <h1>NCAA D1 College Softball Stats & Rankings</h1>
             <p className="data-update-info">
               Data updated: {new Date().toLocaleDateString()}
+              {refreshing && ' (Refreshing...)'}
             </p>
           </header>
 
@@ -140,6 +195,21 @@ function App() {
           </footer>
         </div>
       );
+      
+      // Only apply pull-to-refresh on mobile devices
+      if (isMobile) {
+        return (
+          <PullToRefresh 
+            onRefresh={handleRefresh}
+            pullingContent={<div className="refreshing-indicator">Pull down to refresh...</div>}
+            refreshingContent={<div className="refreshing-indicator">Refreshing NCAA data...</div>}
+          >
+            {content}
+          </PullToRefresh>
+        );
+      }
+      
+      return content;
     } catch (renderError) {
       console.error('Render error:', renderError);
       return (
@@ -164,7 +234,12 @@ function App() {
     return <div className="error-container">{error}</div>;
   }
 
-  return renderContent();
+  return (
+    <>
+      {renderContent()}
+      <PWAInstallPrompt />
+    </>
+  );
 }
 
 export default App;
