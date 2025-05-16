@@ -4,6 +4,9 @@
   margin-bottom: 30px;
   width: 100%;
   color: var(--text-color);
+  /* Fix for scrolling issues */
+  overflow-y: visible;
+  touch-action: auto;
 }
 
 .team-rankings h2 {
@@ -19,6 +22,8 @@
   flex-direction: column;
   gap: 16px;
   margin-bottom: 20px;
+  /* Ensure container allows scrolling */
+  overflow-y: visible;
 }
 
 .team-card {
@@ -29,6 +34,7 @@
   transition: all 0.3s ease;
   cursor: pointer;
   overflow: hidden;
+  position: relative;
 }
 
 .team-card:hover {
@@ -41,10 +47,29 @@
   background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.1);
 }
 
+/* Make ranking more prominent with a badge on the left side */
+.team-rank-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 40px;
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.2);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
 .team-card-header {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding-left: 50px;
 }
 
 .team-rank-container {
@@ -66,26 +91,25 @@
 }
 
 .rank-change {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  font-size: 0.7rem;
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 0.8rem;
   font-weight: 700;
-  padding: 2px 4px;
+  padding: 2px 5px;
   border-radius: 10px;
   background-color: rgba(0, 0, 0, 0.5);
 }
 
 .rank-change.improved {
-  color: #5cb85c;
+  color: var(--success-color);
 }
 
 .rank-change.dropped {
-  color: #d9534f;
+  color: var(--danger-color);
 }
 
 .rank-change.same {
-  color: #f0ad4e;
+  color: var(--warning-color);
 }
 
 .team-info {
@@ -103,17 +127,21 @@
   text-overflow: ellipsis;
 }
 
+/* Emphasize the win-loss record */
 .team-record {
-  font-size: 0.85rem;
-  color: var(--secondary-color);
+  font-size: 1rem;
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
+/* Reduce emphasis on points since we're highlighting win-loss record */
 .team-points {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-width: 60px;
   text-align: center;
+  opacity: 0.8;
 }
 
 .points-value {
@@ -194,6 +222,24 @@
   font-weight: 900;
 }
 
+/* Special styling for top 10 teams */
+.team-card:nth-child(-n+10) .team-rank-badge {
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.3);
+}
+
+/* Special styling for top 5 teams */
+.team-card:nth-child(-n+5) .team-rank-badge {
+  background-color: rgba(var(--primary-rgb, 107, 178, 255), 0.4);
+  font-weight: 800;
+}
+
+/* Special styling for #1 team */
+.team-card:first-child .team-rank-badge {
+  background-color: var(--primary-color);
+  color: #fff;
+  font-weight: 900;
+}
+
 /* Desktop optimizations */
 @media (min-width: 768px) {
   .rankings-cards-container {
@@ -210,6 +256,15 @@
   
   .team-name {
     font-size: 0.95rem;
+  }
+  
+  .team-rank-badge {
+    width: 32px;
+    font-size: 1.2rem;
+  }
+  
+  .team-card-header {
+    padding-left: 40px;
   }
 }
 

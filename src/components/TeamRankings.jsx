@@ -30,20 +30,21 @@ const TeamRankings = ({ rankings }) => {
         className={`team-card ${isExpanded ? 'expanded' : ''}`}
         onClick={() => toggleTeamDetails(team.RANK)}
       >
+        {/* Add prominent rank badge */}
+        <div className="team-rank-badge">{team.RANK}</div>
+        
         <div className="team-card-header">
-          <div className="team-rank-container">
-            <span className="team-rank">{team.RANK}</span>
-            {rankChange !== null && (
-              <span className={`rank-change ${rankChange.direction}`}>
-                {rankChange.symbol} {Math.abs(rankChange.value)}
-              </span>
-            )}
-          </div>
-          
           <div className="team-info">
             <div className="team-name">{team.COLLEGE}</div>
+            {/* Emphasize win-loss record as main stat */}
             <div className="team-record">{team.RECORD}</div>
           </div>
+          
+          {rankChange !== null && (
+            <span className={`rank-change ${rankChange.direction}`}>
+              {rankChange.symbol} {Math.abs(rankChange.value)}
+            </span>
+          )}
           
           <div className="team-points">
             <span className="points-value">{team.POINTS}</span>
