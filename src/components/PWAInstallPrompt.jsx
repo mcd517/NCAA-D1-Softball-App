@@ -57,24 +57,31 @@ const PWAInstallPrompt = () => {
     localStorage.setItem('pwaPromptDismissed', Date.now().toString());
   };
   
-  // Don't show anything if no prompt needed
-  if (!showInstallPrompt) return null;
-  
+  // Hide prompt if app is already installed or user dismissed permanently
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  const dismissed = localStorage.getItem('pwaPromptDismissed');
+  if (isStandalone || dismissed) return null;
+
   return (
     <div className="install-pwa-prompt">
       {isIOS ? (
-        <div>
+        <>
           <p>
-            Install this app on your device by tapping 
-            <strong> Share</strong> and then <strong>Add to Home Screen</strong>
+            To install, tap <strong>Share</strong> → <strong>Add to Home Screen</strong> in Safari.
           </p>
           <button className="close-prompt" onClick={closePrompt}>×</button>
-        </div>
+        </>
       ) : (
         <>
-          <p>Get the NCAA D1 Softball App on your home screen</p>
+          <p>
+            {deferredPrompt
+              ? 'Get the NCAA D1 Softball App on your home screen'          
+              : 'Install this web app using your browser menu (⋮) → Install App.'}
+          </p>
           <div>
-            <button onClick={handleInstallClick}>Install</button>
+            {deferredPrompt && (
+              <button onClick={handleInstallClick}>Install</button>
+            )}
             <button className="close-prompt" onClick={closePrompt}>×</button>
           </div>
         </>

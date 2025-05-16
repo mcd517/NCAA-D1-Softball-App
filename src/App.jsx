@@ -151,6 +151,7 @@ function App() {
   // Safely render the app even if some components might have issues
   const renderContent = () => {
     try {
+      // Create page content without PullToRefresh
       const content = (
         <div className="app-container">
           <header className="app-header">
@@ -174,8 +175,20 @@ function App() {
 
           <main className="app-content">
             {activeTab === 'rankings' && (
-              <div className="section-container">
-                <TeamRankings rankings={rankings || { data: [] }} />
+              <div className="section-container rankings-section">
+                {/* Only apply PullToRefresh to the table container itself, not the entire page */}
+                {isMobile ? (
+                  <PullToRefresh 
+                    onRefresh={handleRefresh}
+                    pullingContent={<div className="refreshing-indicator">Pull down to refresh rankings...</div>}
+                    refreshingContent={<div className="refreshing-indicator">Refreshing NCAA rankings data...</div>}
+                    className="rankings-ptr-container"
+                  >
+                    <TeamRankings rankings={rankings || { data: [] }} />
+                  </PullToRefresh>
+                ) : (
+                  <TeamRankings rankings={rankings || { data: [] }} />
+                )}
               </div>
             )}
             
@@ -195,19 +208,6 @@ function App() {
           </footer>
         </div>
       );
-      
-      // Only apply pull-to-refresh on mobile devices for Rankings tab
-      if (isMobile && activeTab === 'rankings') {
-        return (
-          <PullToRefresh 
-            onRefresh={handleRefresh}
-            pullingContent={<div className="refreshing-indicator">Pull down to refresh...</div>}
-            refreshingContent={<div className="refreshing-indicator">Refreshing NCAA data...</div>}
-          >
-            {content}
-          </PullToRefresh>
-        );
-      }
       
       return content;
     } catch (renderError) {
