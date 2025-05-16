@@ -1,0 +1,11 @@
+--- Pods/fmt/include/fmt/core.h
++++ Pods/fmt/include/fmt/core.h
+@@ -140,7 +140,7 @@
+ // A lightweight Unicode character type.
+ // It is a Character concept in C++20 if compiled as C++20, otherwise a C++17
+ // concept.
+-using char8_type = char8_t;
++using char8_type = unsigned char;
+ #else
+ enum char8_t : unsigned char {};
+ using char8_type = char8_t;
