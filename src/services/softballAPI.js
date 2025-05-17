@@ -1,14 +1,37 @@
 import axios from 'axios';
 
-// Determine the API base URL based on Vite's mode
-const API_BASE_URL = import.meta.env.PROD
-  ? '/.netlify/functions/api' // For Netlify production builds
-  : 'http://localhost:5003/api/softball'; // For local development
+// Detect if running in Capacitor (iOS/Android app)
+const isCapacitor = !!window.Capacitor || window.location.protocol === 'capacitor:';
+
+// Detect if running on a real device (not simulator)
+const isRealDevice = isCapacitor && (
+  // iOS-specific check for real device
+  (window.Capacitor?.getPlatform?.() === 'ios' && 
+   !window.navigator.userAgent.includes('Mac')) || 
+  // Android always counts as real device
+  window.Capacitor?.getPlatform?.() === 'android'
+);
+
+// Get the environment-appropriate API URL
+const API_BASE_URL = (() => {
+  // For local simulator testing - use localhost or 192.168.x.x
+  if (isCapacitor && !isRealDevice) {
+    return 'http://localhost:5003/api/softball'; 
+  }
+  
+  // For production apps on real devices - use Netlify function
+  if (isRealDevice || import.meta.env.PROD) {
+    return '/.netlify/functions/api';
+  }
+  
+  // For local development in browser
+  return 'http://localhost:5003/api/softball';
+})();
 
 console.log('Frontend connecting to backend at:', API_BASE_URL);
-// Log Vite environment mode for debugging
-console.log('Is production (import.meta.env.PROD):', import.meta.env.PROD);
-console.log('Is development (import.meta.env.DEV):', import.meta.env.DEV);
+console.log('Is Capacitor app:', isCapacitor);
+console.log('Is real device:', isRealDevice);
+console.log('Is production build:', import.meta.env.PROD);
 
 // Create axios instance for our backend with longer timeout
 const apiClient = axios.create({

@@ -15,15 +15,25 @@ function App() {
   const [activeTab, setActiveTab] = useState('rankings'); // Default to rankings tab
   const [refreshing, setRefreshing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isCapacitor, setIsCapacitor] = useState(false);
   
-  // Check if device is mobile
+  // Check if device is mobile and if running in Capacitor
   useEffect(() => {
+    // Check if mobile
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
     
-    // Initial check
+    // Check if running in Capacitor (iOS/Android app)
+    const checkIfCapacitor = () => {
+      const isCapacitorApp = !!window.Capacitor || window.location.protocol === 'capacitor:';
+      setIsCapacitor(isCapacitorApp);
+      console.log('Running in Capacitor:', isCapacitorApp);
+    };
+    
+    // Initial checks
     checkIfMobile();
+    checkIfCapacitor();
     
     // Add event listener for resize
     window.addEventListener('resize', checkIfMobile);
@@ -154,7 +164,7 @@ function App() {
       // Create page content with modern header
       const content = (
         <div className="app-container">
-          <div className="modern-header">
+          <div className={`modern-header ${isCapacitor ? 'ios-padding' : ''}`}>
             <h1>NCAA D1 College Softball Stats & Rankings</h1>
             <p className="data-update-info">
               Data updated: {new Date().toLocaleDateString()}

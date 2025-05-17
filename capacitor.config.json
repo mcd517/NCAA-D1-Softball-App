@@ -1,5 +1,26 @@
 {
   "appId": "com.mcd.softball",
   "appName": "D1 College Softball",
-  "webDir": "dist"
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "hostname": "app"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#192841",
+    "preferredStatusBarStyle": "lightContent",
+    "scheme": "D1CollegeSoftball",
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#192841",
+      "showSpinner": true,
+      "spinnerColor": "#ffffff"
+    }
+  }
 }

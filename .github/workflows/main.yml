@@ -1,0 +1,140 @@
+name: NCAA D1 Softball App CI/CD
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'Deployment target'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      increment_version:
+        description: 'Increment version number'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+        
+      - name: Run server tests
+        run: cd server && npm ci && npm test
+        
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: success() && (github.event_name == 'push' || github.event.inputs.deploy_target)
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build web app
+        run: npm run build
+        
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+          
+  deploy_netlify:
+    needs: build
+    runs-on: ubuntu-latest
+    if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.deploy_target == 'production' || github.event.inputs.deploy_target == 'staging')
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+          
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v2
+        with:
+          publish-dir: './dist'
+          production-branch: main
+          deploy-message: 'Deploy from GitHub Actions'
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+          overwrites-pull-request-comment: true
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        timeout-minutes: 2
+        
+  prep_mobile:
+    needs: build
+    runs-on: macos-latest
+    if: success() && github.event.inputs.deploy_target == 'production'
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist
+          
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli
+        
+      - name: Copy web assets to iOS and Android
+        run: npx cap copy
+        
+      - name: Generate iOS archive
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme App -config Release archive -archivePath App.xcarchive
+          
+      - name: Upload iOS archive
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-archive
+          path: ios/App/App.xcarchive
+          
+      # Note: For actual App Store submission, you would need to:
+      # 1. Set up proper code signing in the workflow
+      # 2. Add steps to export the archive as an IPA
+      # 3. Use fastlane or apple-app-store-connect-api to submit to App Store

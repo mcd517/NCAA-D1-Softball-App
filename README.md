@@ -1,106 +1,134 @@
-# D1 College Softball Stats & Rankings
+# NCAA D1 College Softball App
 
-A React application powered by Vite that displays real-time NCAA Division I Softball data, including team rankings, individual statistical leaders, and tournament brackets. Data is fetched from the NCAA API through a Node.js server service.
-
----
+A mobile application for tracking NCAA Division I college softball stats, rankings, and scores.
 
 ## Features
 
-- **Team Rankings**: View the latest Division I softball team rankings.
-- **Statistical Leaders**: Browse top players in key hitting and pitching categories (e.g., batting average, home runs, ERA, strikeouts).
-- **Tournament Bracket**: Display the current Women’s College World Series and regionals bracket.
-- **Responsive UI**: Clean, mobile-friendly design with loading and error states.
-- **Rate-Limited API**: Server enforces rate limiting to avoid API throttling.
+- Team rankings from NCAA polls
+- Statistical leaders for batting and pitching categories
+- Conference standings
+- Modern UI with pull-to-refresh functionality
+- Available for iOS and Android
 
-## Project Structure
+## Tech Stack
 
-```
-/ (root)
-├── src/                     # React client application
-│   ├── main.jsx             # App entry point
-│   ├── App.jsx              # Main layout and routing logic
-│   ├── components/          # Reusable UI components
-│   └── services/            # Client-side API wrapper (softballAPI.js)
-├── public/                  # Static assets (favicon, icons)
-├── server/                  # Node.js API server
-│   ├── server.js            # Express setup
-│   ├── routes/              # API route definitions
-│   └── services/            # Data fetching and formatting (NCAAWebScraper)
-├── README.md                # This documentation
-├── package.json             # Client dependencies & scripts
-└── server/package.json      # Server dependencies & scripts
-```
+- **Frontend**: React, Vite
+- **Mobile Framework**: Capacitor (iOS & Android)
+- **Backend**: Node.js, Express
+- **API**: NCAA Statistics API
+- **Serverless Functions**: Netlify Functions
+- **Continuous Integration**: GitHub Actions
 
-## Getting Started
+## Local Development
 
 ### Prerequisites
 
-- Node.js v14+ and npm (or yarn)
+- Node.js v18+
+- npm v9+
+- Xcode (for iOS development)
+- Android Studio (for Android development)
 
-### Installation
+### Setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/mcd517/NCAA-D1-Softball-App.git
-   cd NCAA-D1-Softball-App
-   ```
-2. Install client dependencies:
-   ```bash
-   npm install
-   ```
-3. Install server dependencies:
-   ```bash
-   cd server && npm install && cd ..
-   ```
+```bash
+# Install dependencies
+npm install
+cd server
+npm install
+cd ..
 
-### Running in Development
+# Start the backend server
+cd server
+npm run dev
 
-1. Start the API server (default port 3001):
-   ```bash
-   npm run server
-   ```
-2. In a separate terminal, start the React app (default port 3000):
-   ```bash
-   npm run dev
-   ```
-3. Open http://localhost:3000 in your browser.
+# In a new terminal, start the frontend
+cd /Users/seanmac5291/Desktop/NCAA-D1-Softball-App
+npm run dev
+```
 
-### Building for Production
+### Running Tests
 
-1. Build the client:
-   ```bash
-   npm run build
-   ```
-2. Start the server in production mode:
-   ```bash
-   npm start --prefix server
-   ```
-3. The app will serve static files from `/dist` alongside the API endpoints.
+```bash
+# Run frontend tests
+npm test
 
-## API Endpoints
+# Run backend tests
+cd server && npm test
+```
 
-The server exposes the following endpoints:
+## Deployment
 
-- `GET /api/rankings` — Fetch current team rankings
-- `GET /api/stats/:category` — Fetch top 50 leaders for a stat category (`batting`, `hits`, `homeRuns`, `obp`, `slg`, `era`, `strikeoutsPerSeven`, `strikeouts`)
-- `GET /api/bracket` — (if implemented) Fetch tournament bracket data
+### Automated Deployment Script
 
-## Configuration
+The project includes a deployment script that handles building, version management, and platform deployment.
 
-- **Rate Limiting**: The server enforces a 1-second delay between external NCAA API calls.
-- **API Base URL**: Defined in `server/services/ncaaWebScraper.js` as `https://ncaa-api.henrygd.me`.
+```bash
+# Development build (local testing)
+./deploy.sh --dev
 
-## Contributing
+# Production build for App Store submission
+./deploy.sh --prod --inc-version
 
-1. Fork the repo
-2. Create a new branch: `git checkout -b feature/my-feature`
-3. Make your changes
-4. Submit a pull request
+# See all options
+./deploy.sh --help
+```
+
+### CI/CD with GitHub Actions
+
+The project is configured with GitHub Actions workflows to:
+
+1. Run tests on every push and PR
+2. Build and deploy to Netlify on merges to main/master
+3. Prepare iOS and Android builds for app store submission
+
+Required GitHub repository secrets for CI/CD:
+- `NETLIFY_AUTH_TOKEN`: Your Netlify authentication token
+- `NETLIFY_SITE_ID`: The ID of your Netlify site
+
+### Manual Deployment Steps
+
+#### Web (Netlify)
+
+```bash
+# Install Netlify CLI
+npm install -g netlify-cli
+
+# Login to Netlify
+netlify login
+
+# Deploy to production
+netlify deploy --prod
+```
+
+#### iOS (App Store)
+
+1. Build the web app: `npm run build`
+2. Copy to iOS: `npx cap copy ios`
+3. Open in Xcode: `npx cap open ios`
+4. In Xcode: Product > Archive
+5. Follow Xcode prompts to submit to App Store Connect
+
+#### Android (Play Store)
+
+1. Build the web app: `npm run build`
+2. Copy to Android: `npx cap copy android` 
+3. Open in Android Studio: `npx cap open android`
+4. In Android Studio: Build > Generate Signed Bundle / APK
+5. Upload the generated AAB file to the Play Console
+
+## API Documentation
+
+### Endpoints
+
+- `/api/softball/rankings` - Get team rankings
+- `/api/softball/stats/:category` - Get statistical leaders
+  - Categories: `batting`, `hits`, `homeRuns`, `obp`, `slg`, `era`, `strikeoutsPerSeven`, `strikeoutsTotal`
+- `/api/softball/standings` - Get conference standings
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT
 
----
+## Credits
 
-*Data sources: NCAA API, ESPN*
+Data provided by NCAA.com
