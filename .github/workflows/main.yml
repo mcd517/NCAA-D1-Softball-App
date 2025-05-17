@@ -26,10 +26,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -48,10 +48,10 @@ jobs:
     runs-on: ubuntu-latest
     if: success() && (github.event_name == 'push' || github.event.inputs.deploy_target)
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -63,7 +63,7 @@ jobs:
         run: npm run build
         
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
@@ -73,10 +73,10 @@ jobs:
     runs-on: ubuntu-latest
     if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.deploy_target == 'production' || github.event.inputs.deploy_target == 'staging')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
@@ -100,10 +100,10 @@ jobs:
     runs-on: macos-latest
     if: success() && github.event.inputs.deploy_target == 'production'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -112,7 +112,7 @@ jobs:
         run: npm ci
         
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
@@ -129,7 +129,7 @@ jobs:
           xcodebuild -workspace App.xcworkspace -scheme App -config Release archive -archivePath App.xcarchive
           
       - name: Upload iOS archive
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ios-archive
           path: ios/App/App.xcarchive
