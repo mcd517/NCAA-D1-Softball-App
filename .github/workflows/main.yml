@@ -2,7 +2,7 @@ name: NCAA D1 Softball App CI/CD
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, Mobile-app-store ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
