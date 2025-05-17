@@ -1,6 +1,6 @@
-# D1 College Softball Stats & Rankings
+# D1 College Softball Stats & Rankings 
 
-A React application powered by Vite that displays real-time NCAA Division I Softball data, including team rankings, individual statistical leaders, and tournament brackets. Data is fetched from the NCAA API through a Node.js server service.
+A React application powered by Vite that displays real-time NCAA Division I Softball data, including team rankings, individual statistical leaders, and tournament brackets. Data is fetched from the NCAA API through a Node.js server service. 1.0
 
 ---
 
