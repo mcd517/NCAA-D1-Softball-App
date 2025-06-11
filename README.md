@@ -2,6 +2,7 @@
 
 A React application powered by Vite that displays real-time NCAA Division I Softball data, including team rankings, individual statistical leaders, and tournament brackets. Data is fetched from the NCAA API through a Node.js server service. 1.0
 
+[Live URL for Web App](https://ncaa-d1-softball.netlify.app/)
 ---
 
 ## Features
