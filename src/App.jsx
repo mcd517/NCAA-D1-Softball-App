@@ -99,33 +99,59 @@ function App() {
     try {
       return (
         <div className="app-container">
-          <header className="app-header">
+          <header className="app-header" role="banner">
             <h1>NCAA D1 College Softball Stats & Rankings</h1>
             <p className="data-update-info">
               Data updated: {new Date().toLocaleDateString()}
             </p>
           </header>
 
-          <nav className="app-navigation">
-            <ul>
-              <li className={activeTab === 'rankings' ? 'active' : ''}>
-                <button onClick={() => setActiveTab('rankings')}>Rankings</button>
+          <nav className="app-navigation" role="navigation" aria-label="Main navigation">
+            <ul role="tablist">
+              <li role="presentation" className={activeTab === 'rankings' ? 'active' : ''}>
+                <button 
+                  role="tab"
+                  aria-selected={activeTab === 'rankings'}
+                  aria-controls="rankings-panel"
+                  id="rankings-tab"
+                  onClick={() => setActiveTab('rankings')}
+                >
+                  Rankings
+                </button>
               </li>
-              <li className={activeTab === 'stats' ? 'active' : ''}>
-                <button onClick={() => setActiveTab('stats')}>Stat Leaders</button>
+              <li role="presentation" className={activeTab === 'stats' ? 'active' : ''}>
+                <button 
+                  role="tab"
+                  aria-selected={activeTab === 'stats'}
+                  aria-controls="stats-panel"
+                  id="stats-tab"
+                  onClick={() => setActiveTab('stats')}
+                >
+                  Stat Leaders
+                </button>
               </li>
             </ul>
           </nav>
 
-          <main className="app-content">
+          <main className="app-content" id="main-content" role="main">
             {activeTab === 'rankings' && (
-              <div className="section-container">
+              <div 
+                className="section-container" 
+                role="tabpanel" 
+                id="rankings-panel" 
+                aria-labelledby="rankings-tab"
+              >
                 <TeamRankings rankings={rankings || { data: [] }} />
               </div>
             )}
             
             {activeTab === 'stats' && (
-              <div className="section-container">
+              <div 
+                className="section-container" 
+                role="tabpanel" 
+                id="stats-panel" 
+                aria-labelledby="stats-tab"
+              >
                 <StatLeaders 
                   statData={statData || { category: 'Batting Average', leaders: [] }} 
                   activeCategory={activeStatCategory}
@@ -133,9 +159,21 @@ function App() {
                 />
               </div>
             )}
+            
+            {/* Screen reader live region for status updates */}
+            <div 
+              id="status-announcements" 
+              aria-live="polite" 
+              aria-atomic="true" 
+              className="sr-only"
+            >
+              {loading && "Loading NCAA D1 College Softball data..."}
+              {error && `Error: ${error}`}
+              {statData?.isLoading && "Loading statistical leaders..."}
+            </div>
           </main>
 
-          <footer className="app-footer">
+          <footer className="app-footer" role="contentinfo">
             <p>&copy; {new Date().getFullYear()} NCAA D1 College Softball Stats & Rankings | Data Sources: NCAA </p>
           </footer>
         </div>
@@ -143,7 +181,7 @@ function App() {
     } catch (renderError) {
       console.error('Render error:', renderError);
       return (
-        <div className="error-container">
+        <div className="error-container" role="alert">
           <h2>Something went wrong</h2>
           <p>Please try refreshing the page</p>
         </div>
@@ -153,15 +191,20 @@ function App() {
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <div className="spinner"></div>
+      <div className="loading-container" role="status" aria-live="polite">
+        <div className="spinner" aria-hidden="true"></div>
         <p>Loading NCAA D1 College Softball data...</p>
       </div>
     );
   }
 
   if (error) {
-    return <div className="error-container">{error}</div>;
+    return (
+      <div className="error-container" role="alert" aria-live="assertive">
+        <h2>Error Loading Data</h2>
+        <p>{error}</p>
+      </div>
+    );
   }
 
   return renderContent();
