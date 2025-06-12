@@ -1,0 +1,162 @@
+name: Comprehensive Web Accessibility Evaluation
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC (weekly)
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual triggering
+  
+env:
+  TARGET_URL: https://ncaa-d1-softball.netlify.app/
+  
+jobs:
+  accessibility-audit:
+    runs-on: ubuntu-latest
+    name: Comprehensive Accessibility Audit
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install accessibility testing tools
+        run: |
+          npm install -g pa11y pa11y-reporter-html axe-core @axe-core/cli lighthouse
+          
+      - name: Create reports directory
+        run: mkdir -p accessibility-reports
+        
+      - name: Run pa11y accessibility scan
+        run: |
+          echo "Running pa11y scan..."
+          pa11y $TARGET_URL \
+            --reporter html \
+            --standard WCAG2AA \
+            --timeout 30000 \
+            --wait 3000 \
+            --ignore "color-contrast" > accessibility-reports/pa11y-report.html || true
+            
+          pa11y $TARGET_URL \
+            --reporter json \
+            --standard WCAG2AA \
+            --timeout 30000 \
+            --wait 3000 \
+            --ignore "color-contrast" > accessibility-reports/pa11y-report.json || true
+            
+      - name: Run axe-core accessibility scan
+        run: |
+          echo "Running axe-core scan..."
+          npx axe $TARGET_URL \
+            --save accessibility-reports/axe-report.json \
+            --reporter v2 \
+            --timeout 30000 || true
+            
+      - name: Run Lighthouse accessibility audit
+        run: |
+          echo "Running Lighthouse accessibility audit..."
+          lighthouse $TARGET_URL \
+            --only-categories=accessibility \
+            --output=json \
+            --output=html \
+            --output-path=accessibility-reports/lighthouse-accessibility \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --max-wait-for-load=30000 || true
+            
+      - name: Generate comprehensive summary
+        run: |
+          echo "# Web Accessibility Evaluation Report" > accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "**Scan Date:** $(date)" >> accessibility-reports/README.md
+          echo "**Target URL:** $TARGET_URL" >> accessibility-reports/README.md
+          echo "**Standards:** WCAG 2.1 AA" >> accessibility-reports/README.md
+          echo "**Tools Used:** pa11y, axe-core, Lighthouse" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          
+          echo "## Summary" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          
+          # Count pa11y issues
+          if [ -f accessibility-reports/pa11y-report.json ]; then
+            PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
+            echo "- **pa11y Issues:** $PA11Y_COUNT" >> accessibility-reports/README.md
+          fi
+          
+          # Count axe-core issues
+          if [ -f accessibility-reports/axe-report.json ]; then
+            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq '.violations | length' 2>/dev/null || echo "0")
+            echo "- **axe-core Violations:** $AXE_COUNT" >> accessibility-reports/README.md
+          fi
+          
+          # Extract Lighthouse accessibility score
+          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
+            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "N/A")
+            echo "- **Lighthouse Accessibility Score:** $LIGHTHOUSE_SCORE%" >> accessibility-reports/README.md
+          fi
+          
+          echo "" >> accessibility-reports/README.md
+          echo "## Report Files" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "- \`pa11y-report.html\` - Detailed pa11y report (HTML)" >> accessibility-reports/README.md
+          echo "- \`pa11y-report.json\` - pa11y report data (JSON)" >> accessibility-reports/README.md
+          echo "- \`axe-report.json\` - axe-core violations report (JSON)" >> accessibility-reports/README.md
+          echo "- \`lighthouse-accessibility.report.html\` - Lighthouse accessibility audit (HTML)" >> accessibility-reports/README.md
+          echo "- \`lighthouse-accessibility.report.json\` - Lighthouse accessibility audit data (JSON)" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "## Compliance Notes" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "This automated scan provides a baseline accessibility assessment. Manual testing and expert review are also recommended for comprehensive accessibility compliance." >> accessibility-reports/README.md
+          
+      - name: Upload accessibility reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-evaluation-${{ github.run_number }}
+          path: accessibility-reports/
+          retention-days: 90
+          
+      - name: Create issue summary
+        if: always()
+        run: |
+          echo "# Accessibility Scan Results" > scan-summary.txt
+          echo "Scan completed at $(date)" >> scan-summary.txt
+          echo "Target: $TARGET_URL" >> scan-summary.txt
+          echo "" >> scan-summary.txt
+          
+          TOTAL_ISSUES=0
+          
+          if [ -f accessibility-reports/pa11y-report.json ]; then
+            PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
+            echo "pa11y Issues: $PA11Y_COUNT" >> scan-summary.txt
+            TOTAL_ISSUES=$((TOTAL_ISSUES + PA11Y_COUNT))
+          fi
+          
+          if [ -f accessibility-reports/axe-report.json ]; then
+            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq '.violations | length' 2>/dev/null || echo "0")
+            echo "axe-core Violations: $AXE_COUNT" >> scan-summary.txt
+            TOTAL_ISSUES=$((TOTAL_ISSUES + AXE_COUNT))
+          fi
+          
+          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
+            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
+            echo "Lighthouse Score: $LIGHTHOUSE_SCORE%" >> scan-summary.txt
+          fi
+          
+          echo "" >> scan-summary.txt
+          echo "Total Issues Found: $TOTAL_ISSUES" >> scan-summary.txt
+          
+          if [ "$TOTAL_ISSUES" -eq "0" ]; then
+            echo "✅ No accessibility issues detected!" >> scan-summary.txt
+          else
+            echo "⚠️ Accessibility issues found. Please review the detailed reports." >> scan-summary.txt
+          fi
+          
+          echo "📊 Detailed reports available in workflow artifacts." >> scan-summary.txt
+          
+          cat scan-summary.txt
