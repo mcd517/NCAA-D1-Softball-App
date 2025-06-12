@@ -91,6 +91,10 @@ The server exposes the following endpoints:
 - **Rate Limiting**: The server enforces a 1-second delay between external NCAA API calls.
 - **API Base URL**: Defined in `server/services/ncaaWebScraper.js` as `https://ncaa-api.henrygd.me`.
 
+## Accessibility
+
+This application includes automated weekly accessibility evaluation to ensure WCAG 2.1 AA compliance. The scans run every Monday and generate comprehensive reports available in GitHub Actions artifacts. See [Accessibility Documentation](.github/ACCESSIBILITY.md) for more details.
+
 ## Contributing
 
 1. Fork the repo
