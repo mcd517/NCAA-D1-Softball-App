@@ -39,32 +39,42 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
   
   // Always render the category tabs, even during loading
   const renderCategoryTabs = () => (
-    <div className="category-sections">
+    <div className="category-sections" role="group" aria-label="Statistical category selection">
       <div className="category-section">
-        <h4 className="section-title">Batting Stats</h4>
-        <div className="category-tabs">
+        <h4 className="section-title" id="batting-section">Batting Stats</h4>
+        <div className="category-tabs" role="group" aria-labelledby="batting-section">
           {battingCategories.map(category => (
             <button 
               key={category.id}
               className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
               onClick={() => handleCategoryChange(category.id)}
+              aria-pressed={activeCategory === category.id}
+              aria-describedby={`${category.id}-description`}
             >
               {category.label}
+              <span id={`${category.id}-description`} className="sr-only">
+                View {category.label} statistical leaders
+              </span>
             </button>
           ))}
         </div>
       </div>
       
       <div className="category-section">
-        <h4 className="section-title">Pitching Stats</h4>
-        <div className="category-tabs">
+        <h4 className="section-title" id="pitching-section">Pitching Stats</h4>
+        <div className="category-tabs" role="group" aria-labelledby="pitching-section">
           {pitchingCategories.map(category => (
             <button 
               key={category.id}
               className={`category-tab ${activeCategory === category.id ? 'active' : ''}`}
               onClick={() => handleCategoryChange(category.id)}
+              aria-pressed={activeCategory === category.id}
+              aria-describedby={`${category.id}-description`}
             >
               {category.label}
+              <span id={`${category.id}-description`} className="sr-only">
+                View {category.label} statistical leaders
+              </span>
             </button>
           ))}
         </div>
@@ -109,63 +119,63 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
       case 'batting':
         return (
           <>
-            <th>G</th>
-            <th>AB</th>
-            <th>H</th>
+            <th scope="col">G</th>
+            <th scope="col">AB</th>
+            <th scope="col">H</th>
           </>
         );
       case 'hits':
         return (
           <>
-            <th>G</th>
+            <th scope="col">G</th>
             {/* Removed AVG column for Hits */}
           </>
         );
       case 'homeRuns':
         return (
           <>
-            <th>G</th>
-            <th>HR/G</th>
+            <th scope="col">G</th>
+            <th scope="col">HR/G</th>
           </>
         );
       case 'obp':
         return (
           <>
-            <th>G</th>
-            <th>AB</th>
-            <th>H</th>
-            <th>BB</th>
-            <th>HBP</th>
+            <th scope="col">G</th>
+            <th scope="col">AB</th>
+            <th scope="col">H</th>
+            <th scope="col">BB</th>
+            <th scope="col">HBP</th>
           </>
         );
       case 'slg':
         return (
           <>
-            <th>G</th>
-            <th>AB</th>
-            <th>TB</th>
+            <th scope="col">G</th>
+            <th scope="col">AB</th>
+            <th scope="col">TB</th>
           </>
         );
       case 'era':
         return (
           <>
-            <th>APP</th>
-            <th>IP</th>
-            <th>ER</th>
+            <th scope="col">APP</th>
+            <th scope="col">IP</th>
+            <th scope="col">ER</th>
           </>
         );
       case 'strikeoutsPerSeven':
         return (
           <>
-            <th>APP</th>
-            <th>IP</th>
-            <th>SO</th>
+            <th scope="col">APP</th>
+            <th scope="col">IP</th>
+            <th scope="col">SO</th>
           </>
         );
       case 'strikeoutsTotal':
         return (
           <>
-            <th>APP</th>
+            <th scope="col">APP</th>
             {/* removed IP and K/7 for Strikeouts */}
           </>
         );
@@ -255,41 +265,56 @@ const StatLeaders = ({ statData, activeCategory, onCategoryChange }) => {
       {renderCategoryTabs()}
       
       {isLoading ? (
-        <div className="loading">Loading statistical leaders...</div>
+        <div className="loading" role="status" aria-live="polite">
+          Loading statistical leaders...
+        </div>
       ) : (
         <>
           <h3 className="category-title">{statData.category}</h3>
           
           <div className="stats-table-container">
-            <table className="stats-table">
+            <table 
+              className="stats-table" 
+              role="table"
+              aria-label={`${statData.category} statistical leaders`}
+            >
+              <caption className="sr-only">
+                {statData.category} statistical leaders table showing player rankings, names, teams, and statistics
+              </caption>
               <thead>
                 <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Team</th>
-                  <th>Class</th>
-                  <th>Position</th>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Class</th>
+                  <th scope="col">Position</th>
                   {renderAdditionalStatHeaders()}
-                  <th>{getColumnLabel()}</th>
+                  <th scope="col">{getColumnLabel()}</th>
                 </tr>
               </thead>
               <tbody>
                 {statData.leaders.map((leader) => (
                   <tr key={`${leader.rank}-${leader.player.name}-${leader.team.name}`}>
-                    <td className="rank">{leader.rank}</td>
+                    <td className="rank">
+                      <span className="sr-only">Rank </span>
+                      {leader.rank}
+                    </td>
                     <td>{leader.player.name}</td>
                     <td>{leader.team.name}</td>
                     <td>{leader.player.classYear || '-'}</td>
                     <td>{leader.player.position}</td>
                     {renderAdditionalStatValues(leader)}
-                    <td className="stat-value">{formatValue(leader.value, activeCategory)}</td>
+                    <td className="stat-value">
+                      <span className="sr-only">{getColumnLabel()}: </span>
+                      {formatValue(leader.value, activeCategory)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           
-          <div className="update-info">
+          <div className="update-info" role="note" aria-label="Data source information">
             <p>Data Source: NCAA.com</p>
             <p>Last Updated: {statData.updated || new Date().toLocaleDateString()}</p>
           </div>

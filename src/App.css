@@ -30,6 +30,37 @@ body {
   font-size: 16px; /* Slightly increase base font size */
 }
 
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  padding: 8px;
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: bold;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .app-container {
   max-width: 1300px; /* Slightly wider container */
   margin: 0 auto;
@@ -102,6 +133,32 @@ body {
   background-color: var(--hover-color);
   color: var(--primary-color);
   border-bottom-color: var(--primary-color); /* Indicate hover on border as well */
+}
+
+/* Focus styles for accessibility */
+.app-navigation button:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  background-color: var(--hover-color);
+  color: var(--primary-color);
+}
+
+/* Ensure focus is visible on all interactive elements */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline and replace with custom */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 /* Content Sections */
