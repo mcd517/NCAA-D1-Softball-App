@@ -6,9 +6,9 @@ inputs:
     required: false
     default: '20'
   tools:
-    description: 'Comma-separated list of tools to install (pa11y,axe,lighthouse,puppeteer)'
+    description: 'Comma-separated list of tools to install (pa11y,axe,lighthouse,playwright)'
     required: false
-    default: 'pa11y,axe,lighthouse,puppeteer'
+    default: 'pa11y,axe,lighthouse,playwright'
   playwright-browsers:
     description: 'Install Playwright browsers'
     required: false

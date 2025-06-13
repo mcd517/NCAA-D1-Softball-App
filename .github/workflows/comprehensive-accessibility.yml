@@ -32,21 +32,15 @@ jobs:
           echo "Installing global accessibility tools..."
           npm install -g pa11y @axe-core/cli lighthouse
           
-          echo "Installing Puppeteer and Playwright dependencies..."
-          npm install puppeteer --save-dev
+          echo "Installing Playwright dependencies..."
           npm install @axe-core/playwright --save-dev
           
-          echo "Verifying Puppeteer installation..."
-          if npm list puppeteer >/dev/null 2>&1; then
-            echo "✅ Puppeteer installed successfully"
-            node -e "console.log('Puppeteer version:', require('puppeteer/package.json').version)"
+          echo "Verifying Playwright installation..."
+          if npm list @axe-core/playwright >/dev/null 2>&1; then
+            echo "✅ @axe-core/playwright installed successfully"
           else
-            echo "❌ Puppeteer installation failed, trying global installation..."
-            npm install -g puppeteer || echo "Global Puppeteer installation also failed"
+            echo "❌ @axe-core/playwright installation failed"
           fi
-          
-          echo "Final Puppeteer check..."
-          node -e "try { require('puppeteer'); console.log('✅ Puppeteer is accessible'); } catch(e) { console.log('❌ Puppeteer not accessible:', e.message); }"
           
       - name: Install Playwright browsers
         run: |
