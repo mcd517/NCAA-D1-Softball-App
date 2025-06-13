@@ -103,6 +103,38 @@ jobs:
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
             
+      - name: Run Lighthouse mobile accessibility audit
+        run: |
+          echo "Running Lighthouse mobile accessibility audit..."
+          lighthouse $TARGET_URL \
+            --only-categories=accessibility \
+            --emulated-form-factor=mobile \
+            --output=json \
+            --output-path=accessibility-reports/lighthouse-accessibility-mobile.report.json \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --max-wait-for-load=30000 || true
+
+      - name: Run keyboard navigation tests
+        run: |
+          echo "Running keyboard navigation tests..."
+          npx puppeteer tests/a11y/keyboard-navigation.js --url $TARGET_URL --output accessibility-reports/keyboard-nav.json || true
+
+      - name: Run screen reader simulation
+        run: |
+          echo "Running screen reader simulation..."
+          npx axe $TARGET_URL \
+            --save accessibility-reports/screenreader-simulation.json \
+            --timeout 30000 \
+            --chrome-options="no-sandbox,disable-dev-shm-usage" \
+            --rules heading-order,landmark-one-main,aria-allowed-attr,aria-allowed-role || true
+
+      - name: Run WAVE API scan
+        env:
+          WAVE_API_KEY: ${{ secrets.WAVE_API_KEY }}
+        run: |
+          echo "Running WAVE API scan..."
+          curl "https://api.wave.webaim.org/api/request?key=$WAVE_API_KEY&reporttype=4&url=$TARGET_URL" > accessibility-reports/wave-report.json || true
+          
       - name: Generate comprehensive summary report
         run: |
           echo "# 🛠️ Accessibility Fix Guide" > accessibility-reports/README.md
