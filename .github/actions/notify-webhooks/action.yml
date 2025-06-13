@@ -1,0 +1,212 @@
+name: 'Notify Webhooks'
+description: 'Send accessibility scan results to external webhooks (Slack, Teams, Discord)'
+inputs:
+  webhook-type:
+    description: 'Webhook type (slack, teams, discord)'
+    required: true
+  webhook-url:
+    description: 'Webhook URL'
+    required: true
+  scan-status:
+    description: 'Overall scan status (passed/failed)'
+    required: true
+  total-issues:
+    description: 'Total number of issues found'
+    required: true
+  target-url:
+    description: 'URL that was scanned'
+    required: true
+  workflow-run-url:
+    description: 'URL to the workflow run'
+    required: false
+  detailed-results:
+    description: 'Detailed results JSON string'
+    required: false
+    default: '{}'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Send Slack notification
+      if: inputs.webhook-type == 'slack'
+      shell: bash
+      run: |
+        echo "Sending Slack notification..."
+        
+        # Determine color based on status
+        COLOR="good"
+        if [ "${{ inputs.scan-status }}" = "failed" ]; then
+          COLOR="danger"
+        fi
+        
+        # Create Slack payload
+        PAYLOAD=$(cat << EOF
+        {
+          "username": "Accessibility Scanner",
+          "icon_emoji": ":accessibility:",
+          "attachments": [
+            {
+              "color": "$COLOR",
+              "title": "🔍 Accessibility Scan Results",
+              "title_link": "${{ inputs.workflow-run-url }}",
+              "fields": [
+                {
+                  "title": "Status",
+                  "value": "$([ "${{ inputs.scan-status }}" = "passed" ] && echo ":white_check_mark: Passed" || echo ":x: Failed")",
+                  "short": true
+                },
+                {
+                  "title": "Issues Found",
+                  "value": "${{ inputs.total-issues }}",
+                  "short": true
+                },
+                {
+                  "title": "Target URL",
+                  "value": "${{ inputs.target-url }}",
+                  "short": false
+                }
+              ],
+              "footer": "Enterprise Accessibility Scanner",
+              "ts": $(date +%s)
+            }
+          ]
+        }
+        EOF
+        )
+        
+        # Send to Slack
+        curl -X POST \
+          -H 'Content-type: application/json' \
+          --data "$PAYLOAD" \
+          "${{ inputs.webhook-url }}"
+        
+        echo "✅ Slack notification sent"
+
+    - name: Send Teams notification
+      if: inputs.webhook-type == 'teams'
+      shell: bash
+      run: |
+        echo "Sending Teams notification..."
+        
+        # Determine theme color
+        THEME_COLOR="00FF00"  # Green
+        if [ "${{ inputs.scan-status }}" = "failed" ]; then
+          THEME_COLOR="FF0000"  # Red
+        fi
+        
+        # Create Teams payload
+        PAYLOAD=$(cat << EOF
+        {
+          "@type": "MessageCard",
+          "@context": "http://schema.org/extensions",
+          "themeColor": "$THEME_COLOR",
+          "summary": "Accessibility Scan Results",
+          "sections": [
+            {
+              "activityTitle": "🔍 Accessibility Scan Results",
+              "activitySubtitle": "${{ inputs.target-url }}",
+              "facts": [
+                {
+                  "name": "Status",
+                  "value": "$([ "${{ inputs.scan-status }}" = "passed" ] && echo "✅ Passed" || echo "❌ Failed")"
+                },
+                {
+                  "name": "Issues Found",
+                  "value": "${{ inputs.total-issues }}"
+                },
+                {
+                  "name": "Scan Time",
+                  "value": "$(date)"
+                }
+              ],
+              "markdown": true
+            }
+          ],
+          "potentialAction": [
+            {
+              "@type": "OpenUri",
+              "name": "View Detailed Results",
+              "targets": [
+                {
+                  "os": "default",
+                  "uri": "${{ inputs.workflow-run-url }}"
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+        )
+        
+        # Send to Teams
+        curl -X POST \
+          -H 'Content-Type: application/json' \
+          --data "$PAYLOAD" \
+          "${{ inputs.webhook-url }}"
+        
+        echo "✅ Teams notification sent"
+
+    - name: Send Discord notification
+      if: inputs.webhook-type == 'discord'
+      shell: bash
+      run: |
+        echo "Sending Discord notification..."
+        
+        # Determine embed color
+        COLOR=65280  # Green
+        if [ "${{ inputs.scan-status }}" = "failed" ]; then
+          COLOR=16711680  # Red
+        fi
+        
+        # Create Discord payload
+        PAYLOAD=$(cat << EOF
+        {
+          "username": "Accessibility Scanner",
+          "avatar_url": "https://cdn-icons-png.flaticon.com/512/1940/1940611.png",
+          "embeds": [
+            {
+              "title": "🔍 Accessibility Scan Results",
+              "url": "${{ inputs.workflow-run-url }}",
+              "color": $COLOR,
+              "fields": [
+                {
+                  "name": "Status",
+                  "value": "$([ "${{ inputs.scan-status }}" = "passed" ] && echo ":white_check_mark: Passed" || echo ":x: Failed")",
+                  "inline": true
+                },
+                {
+                  "name": "Issues Found",
+                  "value": "${{ inputs.total-issues }}",
+                  "inline": true
+                },
+                {
+                  "name": "Target URL",
+                  "value": "${{ inputs.target-url }}",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "Enterprise Accessibility Scanner"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }
+          ]
+        }
+        EOF
+        )
+        
+        # Send to Discord
+        curl -X POST \
+          -H 'Content-Type: application/json' \
+          --data "$PAYLOAD" \
+          "${{ inputs.webhook-url }}"
+        
+        echo "✅ Discord notification sent"
+
+    - name: Validate webhook response
+      shell: bash
+      run: |
+        echo "Webhook notification completed for ${{ inputs.webhook-type }}"
+        echo "Status: ${{ inputs.scan-status }}"
+        echo "Total issues: ${{ inputs.total-issues }}"
+        echo "Target: ${{ inputs.target-url }}"

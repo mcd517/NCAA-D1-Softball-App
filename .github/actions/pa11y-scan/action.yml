@@ -1,0 +1,249 @@
+name: 'Pa11y Accessibility Scan'
+description: 'Run pa11y accessibility scan with configurable standards and output formats'
+inputs:
+  target-url:
+    description: 'URL to scan'
+    required: true
+  standard:
+    description: 'Accessibility standard (WCAG2A, WCAG2AA, WCAG2AAA, Section508, EN301549)'
+    required: false
+    default: 'WCAG2AA'
+  timeout:
+    description: 'Timeout in milliseconds'
+    required: false
+    default: '30000'
+  wait:
+    description: 'Wait time before scanning in milliseconds'
+    required: false
+    default: '3000'
+  chrome-options:
+    description: 'Chrome launch options'
+    required: false
+    default: 'no-sandbox,disable-dev-shm-usage,disable-gpu,headless'
+  reporters:
+    description: 'Output formats (json,html,csv,cli)'
+    required: false
+    default: 'json,html,csv'
+  report-dir:
+    description: 'Directory to save reports'
+    required: false
+    default: 'accessibility-reports'
+  include-warnings:
+    description: 'Include warnings in report'
+    required: false
+    default: 'true'
+  include-notices:
+    description: 'Include notices in report'
+    required: false
+    default: 'true'
+  ignore-rules:
+    description: 'Comma-separated list of rules to ignore'
+    required: false
+    default: ''
+  fail-on-issues:
+    description: 'Fail the action if issues are found'
+    required: false
+    default: 'false'
+  max-issues:
+    description: 'Maximum number of issues allowed (0 = no limit)'
+    required: false
+    default: '0'
+
+outputs:
+  issues-count:
+    description: 'Number of issues found'
+    value: ${{ steps.scan.outputs.issues-count }}
+  json-report-path:
+    description: 'Path to JSON report'
+    value: ${{ steps.scan.outputs.json-report-path }}
+  html-report-path:
+    description: 'Path to HTML report'
+    value: ${{ steps.scan.outputs.html-report-path }}
+  csv-report-path:
+    description: 'Path to CSV report'
+    value: ${{ steps.scan.outputs.csv-report-path }}
+  scan-status:
+    description: 'Status of the scan (passed/failed)'
+    value: ${{ steps.scan.outputs.scan-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create pa11y configuration
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.report-dir }}
+        
+        # Parse Chrome options
+        CHROME_ARGS=""
+        IFS=',' read -ra OPTIONS <<< "${{ inputs.chrome-options }}"
+        for option in "${OPTIONS[@]}"; do
+          CHROME_ARGS="$CHROME_ARGS,\"--$option\""
+        done
+        CHROME_ARGS="${CHROME_ARGS:1}" # Remove leading comma
+        
+        # Parse ignore rules
+        IGNORE_RULES=""
+        if [ -n "${{ inputs.ignore-rules }}" ]; then
+          IFS=',' read -ra RULES <<< "${{ inputs.ignore-rules }}"
+          for rule in "${RULES[@]}"; do
+            IGNORE_RULES="$IGNORE_RULES,\"$rule\""
+          done
+          IGNORE_RULES="${IGNORE_RULES:1}" # Remove leading comma
+        fi
+        
+        # Create pa11y config file
+        cat > pa11y-config.json << EOF
+        {
+          "chromeLaunchConfig": {
+            "args": [$CHROME_ARGS]
+          },
+          "timeout": ${{ inputs.timeout }},
+          "wait": ${{ inputs.wait }},
+          "standard": "${{ inputs.standard }}",
+          "runners": ["htmlcs"]$(if [ -n "$IGNORE_RULES" ]; then echo ",\"ignore\": [$IGNORE_RULES]"; fi)
+        }
+        EOF
+        
+        echo "Created pa11y configuration:"
+        cat pa11y-config.json
+
+    - name: Run pa11y scans
+      id: scan
+      shell: bash
+      run: |
+        echo "Running pa11y scan..."
+        echo "Target URL: ${{ inputs.target-url }}"
+        echo "Standard: ${{ inputs.standard }}"
+        echo "Reporters: ${{ inputs.reporters }}"
+        
+        # Initialize paths
+        JSON_REPORT=""
+        HTML_REPORT=""
+        CSV_REPORT=""
+        TOTAL_ISSUES=0
+        SCAN_STATUS="passed"
+        
+        # Parse reporters and run scans
+        IFS=',' read -ra REPORTERS <<< "${{ inputs.reporters }}"
+        
+        for reporter in "${REPORTERS[@]}"; do
+          case "$reporter" in
+            "json")
+              JSON_REPORT="${{ inputs.report-dir }}/pa11y-report.json"
+              echo "Running JSON scan..."
+              
+              EXTRA_FLAGS=""
+              if [ "${{ inputs.include-warnings }}" == "true" ]; then
+                EXTRA_FLAGS="$EXTRA_FLAGS --include-warnings"
+              fi
+              if [ "${{ inputs.include-notices }}" == "true" ]; then
+                EXTRA_FLAGS="$EXTRA_FLAGS --include-notices"
+              fi
+              
+              if pa11y "${{ inputs.target-url }}" \
+                --reporter json \
+                --config pa11y-config.json \
+                $EXTRA_FLAGS > "$JSON_REPORT" 2>/dev/null; then
+                echo "✅ JSON scan completed"
+              else
+                echo "⚠️ JSON scan completed with issues"
+                SCAN_STATUS="failed"
+              fi
+              ;;
+              
+            "html")
+              HTML_REPORT="${{ inputs.report-dir }}/pa11y-report.html"
+              echo "Running HTML scan..."
+              
+              if pa11y "${{ inputs.target-url }}" \
+                --reporter html \
+                --config pa11y-config.json > "$HTML_REPORT" 2>/dev/null; then
+                echo "✅ HTML scan completed"
+              else
+                echo "⚠️ HTML scan completed with issues"
+                SCAN_STATUS="failed"
+              fi
+              ;;
+              
+            "csv")
+              CSV_REPORT="${{ inputs.report-dir }}/pa11y-report.csv"
+              echo "Running CSV scan..."
+              
+              EXTRA_FLAGS=""
+              if [ "${{ inputs.include-warnings }}" == "true" ]; then
+                EXTRA_FLAGS="$EXTRA_FLAGS --include-warnings"
+              fi
+              if [ "${{ inputs.include-notices }}" == "true" ]; then
+                EXTRA_FLAGS="$EXTRA_FLAGS --include-notices"
+              fi
+              
+              if pa11y "${{ inputs.target-url }}" \
+                --reporter csv \
+                --config pa11y-config.json \
+                $EXTRA_FLAGS > "$CSV_REPORT" 2>/dev/null; then
+                echo "✅ CSV scan completed"
+              else
+                echo "⚠️ CSV scan completed with issues"
+                SCAN_STATUS="failed"
+              fi
+              ;;
+              
+            "cli")
+              echo "Running CLI scan for console output..."
+              pa11y "${{ inputs.target-url }}" \
+                --config pa11y-config.json || echo "CLI scan completed"
+              ;;
+              
+            *)
+              echo "Unknown reporter: $reporter"
+              ;;
+          esac
+        done
+        
+        # Count issues from JSON report if available
+        if [ -f "$JSON_REPORT" ]; then
+          TOTAL_ISSUES=$(jq 'length' "$JSON_REPORT" 2>/dev/null || echo "0")
+          echo "Found $TOTAL_ISSUES issues"
+          
+          if [ "$TOTAL_ISSUES" -gt "0" ]; then
+            echo "=== Issue Summary ==="
+            jq -r 'group_by(.type) | .[] | "\(.[0].type): \(length) issues"' "$JSON_REPORT" 2>/dev/null || echo "Could not parse issue summary"
+          fi
+        fi
+        
+        # Check thresholds
+        if [ "${{ inputs.max-issues }}" != "0" ] && [ "$TOTAL_ISSUES" -gt "${{ inputs.max-issues }}" ]; then
+          echo "❌ Issues exceed threshold: $TOTAL_ISSUES > ${{ inputs.max-issues }}"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Set outputs
+        echo "issues-count=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+        echo "json-report-path=$JSON_REPORT" >> $GITHUB_OUTPUT
+        echo "html-report-path=$HTML_REPORT" >> $GITHUB_OUTPUT
+        echo "csv-report-path=$CSV_REPORT" >> $GITHUB_OUTPUT
+        echo "scan-status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+        
+        # Fail if requested and issues found
+        if [ "${{ inputs.fail-on-issues }}" == "true" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          echo "❌ Failing due to accessibility issues"
+          exit 1
+        fi
+
+    - name: Validate reports
+      shell: bash
+      run: |
+        echo "=== Report Validation ==="
+        
+        if [ -n "${{ steps.scan.outputs.json-report-path }}" ] && [ -f "${{ steps.scan.outputs.json-report-path }}" ]; then
+          echo "✅ JSON Report: $(wc -c < "${{ steps.scan.outputs.json-report-path }}") bytes"
+        fi
+        
+        if [ -n "${{ steps.scan.outputs.html-report-path }}" ] && [ -f "${{ steps.scan.outputs.html-report-path }}" ]; then
+          echo "✅ HTML Report: $(wc -c < "${{ steps.scan.outputs.html-report-path }}") bytes"
+        fi
+        
+        if [ -n "${{ steps.scan.outputs.csv-report-path }}" ] && [ -f "${{ steps.scan.outputs.csv-report-path }}" ]; then
+          echo "✅ CSV Report: $(wc -c < "${{ steps.scan.outputs.csv-report-path }}") bytes"
+        fi
