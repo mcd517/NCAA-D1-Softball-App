@@ -518,14 +518,26 @@ jobs:
             PA11Y_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/pa11y-report.json 2>/dev/null || echo "0")
           fi
           
+          # Fix: Read from correct Playwright test artifact files
           KEYBOARD_ISSUES=0
-          if [ -f "${{ env.REPORT_DIR }}/keyboard-navigation.json" ]; then
-            KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo "0")
+          if [ -f "${{ env.REPORT_DIR }}/keyboard-navigation-issues.json" ]; then
+            KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation-issues.json 2>/dev/null || echo "0")
           fi
           
           SCREENREADER_ISSUES=0
-          if [ -f "${{ env.REPORT_DIR }}/screen-reader.json" ]; then
-            SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo "0")
+          if [ -f "${{ env.REPORT_DIR }}/screen-reader-issues.json" ]; then
+            SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader-issues.json 2>/dev/null || echo "0")
+          fi
+          
+          # Also check for mobile/desktop variants
+          if [ -f "${{ env.REPORT_DIR }}/responsive-accessibility-issues-mobile.json" ]; then
+            MOBILE_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/responsive-accessibility-issues-mobile.json 2>/dev/null || echo "0")
+            KEYBOARD_ISSUES=$((KEYBOARD_ISSUES + MOBILE_ISSUES))
+          fi
+          
+          if [ -f "${{ env.REPORT_DIR }}/responsive-accessibility-issues-desktop.json" ]; then
+            DESKTOP_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/responsive-accessibility-issues-desktop.json 2>/dev/null || echo "0")
+            KEYBOARD_ISSUES=$((KEYBOARD_ISSUES + DESKTOP_ISSUES))
           fi
           
           LIGHTHOUSE_SCORE=100
@@ -719,4 +731,3 @@ jobs:
             echo "- ✅ **Test and validate** all changes automatically" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Result:** Professional accessibility implementation in ~1 hour vs $TOTAL_MANUAL_HOURS hours manual work" >> $GITHUB_STEP_SUMMARY
-          fi
