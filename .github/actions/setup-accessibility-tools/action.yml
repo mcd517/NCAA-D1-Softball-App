@@ -45,13 +45,8 @@ runs:
       with:
         path: |
           ~/.npm
-          ~/.cache/puppeteer
-          ~/.cache/ms-playwright
-        key: accessibility-tools-${{ runner.os }}-${{ hashFiles(inputs.tools) }}-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          accessibility-tools-${{ runner.os }}-
-          accessibility-tools-
-
+          ~/.cache/ms-playwright  # removed puppeteer cache
+        
     - name: Install accessibility testing tools
       shell: bash
       run: |
@@ -74,9 +69,9 @@ runs:
               echo "Installing Lighthouse..."
               npm install -g lighthouse || echo "Lighthouse installation failed, continuing..."
               ;;
-            "puppeteer")
-              echo "Installing Puppeteer..."
-              npm install puppeteer --save-dev || echo "Puppeteer installation failed, continuing..."
+            "playwright")
+              echo "Installing Playwright test runner and axe-core integration..."
+              npm install -g @playwright/test @axe-core/playwright || echo "Playwright installation failed, continuing..."
               ;;
             *)
               echo "Unknown tool: $tool"
@@ -123,16 +118,9 @@ runs:
           echo "❌ lighthouse: not installed"
         fi
         
-        if npm list puppeteer &> /dev/null; then
-          echo "✅ puppeteer: installed"
-        else
-          echo "❌ puppeteer: not installed"
-        fi
-        
         if npx playwright --version &> /dev/null; then
           echo "✅ playwright: $(npx playwright --version)"
         else
           echo "❌ playwright: not installed"
         fi
-        
         echo "=== Setup Complete ==="
