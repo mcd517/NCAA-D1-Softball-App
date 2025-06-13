@@ -46,9 +46,9 @@ runs:
         path: |
           ~/.npm
           ~/.cache/ms-playwright
-        key: accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-${{ hashFiles('package.json') }}
+        key: accessibility-tools-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('package.json') }}
         restore-keys: |
-          accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-
+          accessibility-tools-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
           accessibility-tools-${{ runner.os }}-
 
     - name: Install accessibility testing tools
