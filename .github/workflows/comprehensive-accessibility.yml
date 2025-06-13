@@ -58,7 +58,7 @@ jobs:
 
       - name: Create keyboard navigation test script
         run: |
-          cat > keyboard-test.js << 'EOF'
+          cat > keyboard-test.cjs << 'EOF'
           const puppeteer = require('puppeteer');
           const { writeFileSync } = require('fs');
 
@@ -227,7 +227,7 @@ jobs:
 
       - name: Create screen reader simulation script
         run: |
-          cat > screen-reader-test.js << 'EOF'
+          cat > screen-reader-test.cjs << 'EOF'
           const puppeteer = require('puppeteer');
           const { writeFileSync } = require('fs');
 
@@ -448,12 +448,12 @@ jobs:
       - name: Run keyboard navigation tests
         run: |
           echo "Running keyboard navigation tests..."
-          node keyboard-test.js || true
+          node keyboard-test.cjs || true
 
       - name: Run screen reader simulation tests
         run: |
           echo "Running screen reader simulation..."
-          node screen-reader-test.js || true
+          node screen-reader-test.cjs || true
 
       - name: Run screen reader simulation with axe-core
         run: |
