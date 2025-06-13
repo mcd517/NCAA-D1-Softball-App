@@ -363,6 +363,43 @@ runs:
       run: |
         SUMMARY_PATH="${{ inputs.report-dir }}/accessibility-summary.md"
         
+        # Calculate values first
+        AXE_VIOLATIONS=${{ inputs.axe-violations }}
+        PA11Y_ISSUES=${{ inputs.pa11y-issues }}
+        PLAYWRIGHT_VIOLATIONS=${{ inputs.playwright-violations }}
+        LIGHTHOUSE_DESKTOP=${{ inputs.lighthouse-desktop-score }}
+        LIGHTHOUSE_MOBILE=${{ inputs.lighthouse-mobile-score }}
+        
+        # Status indicators
+        AXE_STATUS="✅ Passed"
+        if [ "$AXE_VIOLATIONS" -gt "0" ]; then
+          AXE_STATUS="❌ Failed"
+        fi
+        
+        PA11Y_STATUS="✅ Passed"
+        if [ "$PA11Y_ISSUES" -gt "0" ]; then
+          PA11Y_STATUS="❌ Failed"
+        fi
+        
+        PLAYWRIGHT_STATUS="✅ Passed"
+        if [ "$PLAYWRIGHT_VIOLATIONS" -gt "0" ]; then
+          PLAYWRIGHT_STATUS="❌ Failed"
+        fi
+        
+        LIGHTHOUSE_DESKTOP_STATUS="✅ Excellent"
+        if [ "$LIGHTHOUSE_DESKTOP" -lt "90" ] && [ "$LIGHTHOUSE_DESKTOP" -ge "70" ]; then
+          LIGHTHOUSE_DESKTOP_STATUS="⚠️ Good"
+        elif [ "$LIGHTHOUSE_DESKTOP" -lt "70" ]; then
+          LIGHTHOUSE_DESKTOP_STATUS="❌ Needs Work"
+        fi
+        
+        LIGHTHOUSE_MOBILE_STATUS="✅ Excellent"
+        if [ "$LIGHTHOUSE_MOBILE" -lt "90" ] && [ "$LIGHTHOUSE_MOBILE" -ge "70" ]; then
+          LIGHTHOUSE_MOBILE_STATUS="⚠️ Good"
+        elif [ "$LIGHTHOUSE_MOBILE" -lt "70" ]; then
+          LIGHTHOUSE_MOBILE_STATUS="❌ Needs Work"
+        fi
+        
         cat > "$SUMMARY_PATH" << EOF
         # 🔍 Accessibility Scan Summary
 
@@ -375,15 +412,19 @@ runs:
 
         | Tool | Issues/Score | Status |
         |------|-------------|--------|
-        | 🔧 Axe-core | ${{ inputs.axe-violations }} violations | $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
-        | 📋 Pa11y | ${{ inputs.pa11y-issues }} issues | $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
-        | 💡 Lighthouse Desktop | ${{ inputs.lighthouse-desktop-score }}% | $([ "${{ inputs.lighthouse-desktop-score }}" -ge "90" ] && echo "✅ Excellent" || ([ "${{ inputs.lighthouse-desktop-score }}" -ge "70" ] && echo "⚠️ Good" || echo "❌ Needs Work")) |
-        | 💡 Lighthouse Mobile | ${{ inputs.lighthouse-mobile-score }}% | $([ "${{ inputs.lighthouse-mobile-score }}" -ge "90" ] && echo "✅ Excellent" || ([ "${{ inputs.lighthouse-mobile-score }}" -ge "70" ] && echo "⚠️ Good" || echo "❌ Needs Work")) |
-        | 🎭 Playwright | ${{ inputs.playwright-violations }} violations | $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
+        | 🔧 Axe-core | $AXE_VIOLATIONS violations | $AXE_STATUS |
+        | 📋 Pa11y | $PA11Y_ISSUES issues | $PA11Y_STATUS |
+        | 💡 Lighthouse Desktop | $LIGHTHOUSE_DESKTOP% | $LIGHTHOUSE_DESKTOP_STATUS |
+        | 💡 Lighthouse Mobile | $LIGHTHOUSE_MOBILE% | $LIGHTHOUSE_MOBILE_STATUS |
+        | 🎭 Playwright | $PLAYWRIGHT_VIOLATIONS violations | $PLAYWRIGHT_STATUS |
 
         **Total Issues Found:** $TOTAL_ISSUES
 
-        $([ "$TOTAL_ISSUES" -eq "0" ] && cat << 'PASSED'
+        EOF
+        
+        # Add conditional content based on status
+        if [ "$TOTAL_ISSUES" -eq "0" ]; then
+          cat >> "$SUMMARY_PATH" << 'EOF'
         ## 🎉 Congratulations!
 
         Your application passes all accessibility tests! This means:
@@ -399,21 +440,41 @@ runs:
         - Test with real users who use assistive technologies
         - Keep accessibility in mind for new features
         - Consider upgrading to WCAG 2.2 standards when ready
-        PASSED
-        )
-
-        $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'FAILED'
+        EOF
+        else
+          cat >> "$SUMMARY_PATH" << EOF
         ## 🎯 Action Plan
 
         ### Phase 1: Critical Fixes (High Priority)
-        $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "- **Fix ${{ inputs.axe-violations }} Axe violations**: These are WCAG compliance failures that block users with disabilities")
-        $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 70" | bc -l)" -eq "1" ] && echo "- **Improve Lighthouse scores**: Address structural accessibility issues")
+        EOF
+          
+          if [ "$AXE_VIOLATIONS" -gt "0" ]; then
+            echo "- **Fix $AXE_VIOLATIONS Axe violations**: These are WCAG compliance failures that block users with disabilities" >> "$SUMMARY_PATH"
+          fi
+          
+          if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 70" | bc -l)" -eq "1" ]; then
+            echo "- **Improve Lighthouse scores**: Address structural accessibility issues" >> "$SUMMARY_PATH"
+          fi
+          
+          cat >> "$SUMMARY_PATH" << EOF
 
         ### Phase 2: Content Quality (Medium Priority)
-        $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "- **Resolve ${{ inputs.pa11y-issues }} Pa11y issues**: Fix content accessibility problems (alt text, headings, etc.)")
+        EOF
+          
+          if [ "$PA11Y_ISSUES" -gt "0" ]; then
+            echo "- **Resolve $PA11Y_ISSUES Pa11y issues**: Fix content accessibility problems (alt text, headings, etc.)" >> "$SUMMARY_PATH"
+          fi
+          
+          cat >> "$SUMMARY_PATH" << EOF
 
         ### Phase 3: Interaction Testing (Medium Priority)  
-        $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "- **Fix ${{ inputs.playwright-violations }} Playwright issues**: Ensure keyboard navigation and screen reader compatibility")
+        EOF
+          
+          if [ "$PLAYWRIGHT_VIOLATIONS" -gt "0" ]; then
+            echo "- **Fix $PLAYWRIGHT_VIOLATIONS Playwright issues**: Ensure keyboard navigation and screen reader compatibility" >> "$SUMMARY_PATH"
+          fi
+          
+          cat >> "$SUMMARY_PATH" << EOF
 
         ### Next Steps
         1. Download the complete scan reports from the workflow artifacts
@@ -426,8 +487,10 @@ runs:
         - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
         - [React Accessibility Guide](https://react.dev/learn/accessibility)
         - [MDN Accessibility](https://developer.mozilla.org/en-US/docs/Web/Accessibility)
-        FAILED
-        )
+        EOF
+        fi
+        
+        cat >> "$SUMMARY_PATH" << EOF
 
         ## 📋 Report Files
 

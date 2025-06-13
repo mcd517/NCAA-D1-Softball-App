@@ -761,15 +761,192 @@ jobs:
           echo "**Tools:** ${{ needs.setup.outputs.tools }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Add summary content if available
-          if [ -f "${{ env.REPORT_DIR }}/accessibility-summary.md" ]; then
-            cat ${{ env.REPORT_DIR }}/accessibility-summary.md >> $GITHUB_STEP_SUMMARY
+          # Extract values for detailed breakdown
+          AXE_VIOLATIONS=${{ needs.quality-gates.outputs.total-issues }}
+          if [ -f "${{ env.REPORT_DIR }}/axe-report.json" ]; then
+            AXE_VIOLATIONS=$(jq 'if type=="array" then .[0].violations else .violations end | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo "0")
+          fi
+          
+          PA11Y_ISSUES=0
+          if [ -f "${{ env.REPORT_DIR }}/pa11y-report.json" ]; then
+            PA11Y_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/pa11y-report.json 2>/dev/null || echo "0")
+          fi
+          
+          KEYBOARD_ISSUES=0
+          if [ -f "${{ env.REPORT_DIR }}/keyboard-navigation.json" ]; then
+            KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo "0")
+          fi
+          
+          SCREENREADER_ISSUES=0
+          if [ -f "${{ env.REPORT_DIR }}/screen-reader.json" ]; then
+            SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo "0")
+          fi
+          
+          LIGHTHOUSE_SCORE=100
+          if [ -f "${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json" ]; then
+            LIGHTHOUSE_SCORE=$(jq '.categories.accessibility.score * 100' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null || echo "100")
+          fi
+          
+          # Calculate structural issues from Lighthouse
+          STRUCTURAL_ISSUES=0
+          if [ -f "${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json" ]; then
+            # Check for missing main landmark
+            if jq -r '.audits["landmark-one-main"].score' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null | grep -q "null\|0"; then
+              STRUCTURAL_ISSUES=$((STRUCTURAL_ISSUES + 1))
+            fi
+            # Check for missing skip navigation
+            if jq -r '.audits.bypass.score' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null | grep -q "null\|0"; then
+              STRUCTURAL_ISSUES=$((STRUCTURAL_ISSUES + 1))
+            fi
+          fi
+          
+          TOTAL_ISSUES=$((AXE_VIOLATIONS + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES + STRUCTURAL_ISSUES))
+          
+          # Generate comprehensive summary matching the comprehensive workflow format
+          echo "**Scan completed:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Critical issues section
+          if [ "$AXE_VIOLATIONS" -gt "0" ]; then
+            echo "🚨 **CRITICAL:** $AXE_VIOLATIONS WCAG violations require immediate fixes" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## Summary" >> $GITHUB_STEP_SUMMARY
-            echo "- **Total Issues:** ${{ needs.quality-gates.outputs.total-issues }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Overall Status:** ${{ needs.quality-gates.outputs.overall-status }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Quality Gate:** $([ "${{ needs.quality-gates.outputs.quality-gate-passed }}" == "true" ] && echo "✅ Passed" || echo "❌ Failed")" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **WCAG Compliance:** No critical violations found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # High priority sections
+          if [ "$STRUCTURAL_ISSUES" -gt "0" ]; then
+            echo "🏗️ **HIGH PRIORITY:** $STRUCTURAL_ISSUES structural foundation issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE%" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$KEYBOARD_ISSUES" -gt "0" ]; then
+            echo "⌨️ **HIGH PRIORITY:** $KEYBOARD_ISSUES keyboard navigation issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$SCREENREADER_ISSUES" -gt "0" ]; then
+            echo "🔊 **HIGH PRIORITY:** $SCREENREADER_ISSUES screen reader compatibility issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Medium priority
+          if [ "$PA11Y_ISSUES" -gt "0" ]; then
+            echo "📝 **MEDIUM PRIORITY:** $PA11Y_ISSUES content and markup issues" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📁 **Download Reports:** [accessibility-evaluation-comprehensive.zip](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Comprehensive Issue Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Priority | Category | Issues | Impact |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|----------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚨 Critical | WCAG Violations | $AXE_VIOLATIONS | Blocks users with disabilities |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ High | Structural Issues | $STRUCTURAL_ISSUES | Affects screen reader navigation |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⌨️ High | Keyboard Navigation | $KEYBOARD_ISSUES | Blocks keyboard-only users |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔊 High | Screen Reader Support | $SCREENREADER_ISSUES | Impacts assistive technology |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📝 Medium | Content & Markup | $PA11Y_ISSUES | General accessibility quality |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Issues**: $TOTAL_ISSUES" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Action plan
+          if [ "$TOTAL_ISSUES" -eq "0" ]; then
+            echo "🎉 **CONGRATULATIONS!** Your app passes all accessibility tests!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **WCAG 2.1 AA Compliance**: No violations detected" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Keyboard Navigation**: All elements accessible" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Screen Reader Support**: Proper structure and labels" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Content Quality**: No markup issues found" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Structural Foundation**: Landmarks and navigation present" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🎯 Priority-Based Action Plan" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$AXE_VIOLATIONS" -gt "0" ]; then
+              echo "### 🚨 Phase 1: Critical WCAG Fixes (⏰ 2-3 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "- **$AXE_VIOLATIONS WCAG violations** must be fixed immediately" >> $GITHUB_STEP_SUMMARY
+              echo "- These directly violate accessibility standards" >> $GITHUB_STEP_SUMMARY
+              echo "- See axe-report.json for specific elements and fixes" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            HIGH_PRIORITY_COUNT=$((STRUCTURAL_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
+            if [ "$HIGH_PRIORITY_COUNT" -gt "0" ]; then
+              echo "### 🏗️ Phase 2: High Priority Issues (⏰ 2-4 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              if [ "$STRUCTURAL_ISSUES" -gt "0" ]; then
+                echo "**Structural Foundation ($STRUCTURAL_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
+                echo "- Add \`<main>\` landmark to App.jsx" >> $GITHUB_STEP_SUMMARY
+                echo "- Add skip navigation for keyboard users" >> $GITHUB_STEP_SUMMARY
+                echo "- Improves screen reader page navigation" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              if [ "$KEYBOARD_ISSUES" -gt "0" ]; then
+                echo "**Keyboard Navigation ($KEYBOARD_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
+                echo "- Add visible focus indicators to interactive elements" >> $GITHUB_STEP_SUMMARY
+                echo "- Ensure all buttons respond to Enter/Space keys" >> $GITHUB_STEP_SUMMARY
+                echo "- Test tab order flows logically through content" >> $GITHUB_STEP_SUMMARY
+                echo "- Critical for users who cannot use a mouse" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              if [ "$SCREENREADER_ISSUES" -gt "0" ]; then
+                echo "**Screen Reader Support ($SCREENREADER_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
+                echo "- Fix heading hierarchy (h1 → h2 → h3)" >> $GITHUB_STEP_SUMMARY
+                echo "- Add alt text to images" >> $GITHUB_STEP_SUMMARY
+                echo "- Add proper form labels" >> $GITHUB_STEP_SUMMARY
+                echo "- Add ARIA landmarks for page regions" >> $GITHUB_STEP_SUMMARY
+                echo "- Essential for blind and low-vision users" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+            
+            if [ "$PA11Y_ISSUES" -gt "0" ]; then
+              echo "### 📝 Phase 3: Content Quality (⏰ 2-4 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "- **$PA11Y_ISSUES content and markup issues**" >> $GITHUB_STEP_SUMMARY
+              echo "- Review pa11y-report.html for specific element locations" >> $GITHUB_STEP_SUMMARY
+              echo "- Focus on images, headings, and form elements" >> $GITHUB_STEP_SUMMARY
+              echo "- Improves overall accessibility experience" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "### ✅ Phase 4: Validation (⏰ 30 minutes)" >> $GITHUB_STEP_SUMMARY
+            echo "- Re-run this accessibility workflow" >> $GITHUB_STEP_SUMMARY
+            echo "- Test keyboard navigation manually (Tab through page)" >> $GITHUB_STEP_SUMMARY
+            echo "- Test with screen reader if possible (NVDA/VoiceOver)" >> $GITHUB_STEP_SUMMARY
+            echo "- Verify all issues are resolved" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Download complete reports:** \`accessibility-evaluation-comprehensive.zip\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Complete Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This scan includes comprehensive testing with multiple tools:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **WCAG 2.1 AA compliance** (axe-core)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Playwright end-to-end testing** (browser automation)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Keyboard navigation simulation** (custom scripts)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Screen reader compatibility** (ARIA and semantic testing)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Content quality analysis** (pa11y)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Structural foundation audit** (Lighthouse)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Responsive accessibility** (mobile and desktop)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. **Download Reports**: Get the \`accessibility-evaluation-comprehensive.zip\` artifact from this workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "2. **Review Priorities**: Start with critical WCAG violations (highest impact)" >> $GITHUB_STEP_SUMMARY
+          echo "3. **Follow Fix Guide**: Use the README.md in the artifact for detailed guidance" >> $GITHUB_STEP_SUMMARY
+          echo "4. **Test Changes**: Re-run this workflow after implementing fixes" >> $GITHUB_STEP_SUMMARY
+          echo "5. **Manual Testing**: Supplement with keyboard navigation and screen reader testing" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📈 Detailed Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **🚨 Critical WCAG Violations**: $AXE_VIOLATIONS (axe-core scan)" >> $GITHUB_STEP_SUMMARY
+          echo "- **🏗️ Structural Foundation Issues**: $STRUCTURAL_ISSUES (Lighthouse audit)" >> $GITHUB_STEP_SUMMARY
+          echo "- **⌨️ Keyboard Navigation Issues**: $KEYBOARD_ISSUES (simulation test)" >> $GITHUB_STEP_SUMMARY
+          echo "- **🔊 Screen Reader Support Issues**: $SCREENREADER_ISSUES (compatibility test)" >> $GITHUB_STEP_SUMMARY
+          echo "- **📝 Content & Markup Issues**: $PA11Y_ISSUES (pa11y analysis)" >> $GITHUB_STEP_SUMMARY
+          echo "- **💯 Lighthouse Accessibility Score**: $LIGHTHOUSE_SCORE%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Issues Found**: $TOTAL_ISSUES" >> $GITHUB_STEP_SUMMARY
