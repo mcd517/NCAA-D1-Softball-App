@@ -14,7 +14,7 @@ echo "📁 Checking file structure..."
 REQUIRED_FILES=(
     ".github/workflows/enterprise-accessibility.yml"
     ".github/accessibility-config.yml"
-    ".github/ENTERPRISE_ACCESSIBILITY.md"
+    ".github/ACCESSIBILITY.md"
     ".github/actions/setup-accessibility-tools/action.yml"
     ".github/actions/axe-scan/action.yml"
     ".github/actions/pa11y-scan/action.yml"
@@ -152,13 +152,13 @@ fi
 echo ""
 echo "📚 Validating documentation..."
 
-DOC_FILE=".github/ENTERPRISE_ACCESSIBILITY.md"
+DOC_FILE=".github/ACCESSIBILITY.md"
 
 if [ -f "$DOC_FILE" ]; then
     if grep -q "# Enterprise Accessibility Scanner" "$DOC_FILE" && \
-       grep -q "Features" "$DOC_FILE" && \
+       grep -q "What This Solution Offers" "$DOC_FILE" && \
        grep -q "Configuration" "$DOC_FILE" && \
-       grep -q "Usage" "$DOC_FILE"; then
+       grep -q "How It Works" "$DOC_FILE"; then
         echo "✅ Documentation has required sections"
     else
         echo "❌ Documentation missing required sections"
@@ -200,4 +200,4 @@ echo "2. Test the workflow in GitHub Actions"
 echo "3. Configure webhook URLs in accessibility-config.yml"
 echo "4. Set up branch protection rules if desired"
 echo ""
-echo "For detailed usage instructions, see: .github/ENTERPRISE_ACCESSIBILITY.md"
+echo "For detailed usage instructions, see: .github/ACCESSIBILITY.md"

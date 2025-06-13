@@ -29,6 +29,7 @@ Write tests and documentation focused on scan accuracy and coverage.
 Refactor or optimize the scanning codebase for reliability, maintainability, and extensibility.
 Ensure doucmentation (.MD) files are updated for accuracy with each change.
 Ensure that we are not creating duplicative/excees code and files. Default to small and modular.
+Fully explain any changes, suggestions, etc.
 
 Clarifications:
 
