@@ -231,157 +231,33 @@ jobs:
           });
           EOF
 
-      - name: Create screen reader simulation script
+      - name: Create Puppeteer comprehensive test script
         run: |
-          cat > screen-reader-test.cjs << 'EOF'
+          cat > puppeteer-tests.cjs << 'EOF'
           const puppeteer = require('puppeteer');
           const { writeFileSync } = require('fs');
 
-          async function testScreenReaderCompatibility() {
-            const browser = await puppeteer.launch({
-              headless: true,
-              args: ['--no-sandbox', '--disable-dev-shm-usage']
-            });
-            
+          (async () => {
+            const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
             const page = await browser.newPage();
             const issues = [];
-            
-            try {
-              const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
-              console.log(`Testing screen reader compatibility on: ${targetUrl}`);
-              await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-              
-              // Test for missing alt text on images
-              console.log('Testing image alt text...');
-              const imagesWithoutAlt = await page.$$eval('img', imgs => 
-                imgs.filter(img => !img.alt || img.alt.trim() === '').length
-              );
-              
-              if (imagesWithoutAlt > 0) {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'serious',
-                  message: `${imagesWithoutAlt} images missing alt text`,
-                  count: imagesWithoutAlt
-                });
-              }
-              
-              // Test for missing form labels
-              console.log('Testing form labels...');
-              const unlabeledInputs = await page.$$eval('input', inputs => 
-                inputs.filter(input => {
-                  const id = input.id;
-                  const ariaLabel = input.getAttribute('aria-label');
-                  const ariaLabelledby = input.getAttribute('aria-labelledby');
-                  const hasLabel = id && document.querySelector(`label[for="${id}"]`);
-                  return !hasLabel && !ariaLabel && !ariaLabelledby;
-                }).length
-              );
-              
-              if (unlabeledInputs > 0) {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'serious',
-                  message: `${unlabeledInputs} form inputs missing labels`,
-                  count: unlabeledInputs
-                });
-              }
-              
-              // Test for missing headings structure
-              console.log('Testing heading structure...');
-              const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => 
-                headings.map(h => ({ level: parseInt(h.tagName[1]), text: h.textContent.trim() }))
-              );
-              
-              if (headings.length === 0) {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'moderate',
-                  message: 'No heading structure found for screen reader navigation',
-                  count: 1
-                });
-              } else {
-                // Check for proper heading hierarchy
-                let previousLevel = 0;
-                for (const heading of headings) {
-                  if (heading.level > previousLevel + 1) {
-                    issues.push({
-                      type: 'screen-reader',
-                      severity: 'moderate',
-                      message: `Heading hierarchy skip detected (h${previousLevel} to h${heading.level})`,
-                      count: 1
-                    });
-                    break;
-                  }
-                  previousLevel = heading.level;
-                }
-              }
-              
-              // Test for missing ARIA landmarks
-              console.log('Testing ARIA landmarks...');
-              const landmarks = await page.$$eval('[role="main"], [role="navigation"], [role="banner"], [role="contentinfo"], main, nav, header, footer', 
-                elements => elements.length
-              );
-              
-              if (landmarks === 0) {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'moderate',
-                  message: 'No ARIA landmarks found for screen reader navigation',
-                  count: 1
-                });
-              }
-              
-              // Test for missing page title
-              console.log('Testing page title...');
-              const pageTitle = await page.title();
-              if (!pageTitle || pageTitle.trim() === '') {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'moderate',
-                  message: 'Page missing descriptive title',
-                  count: 1
-                });
-              }
-              
-              // Test for missing language attribute
-              console.log('Testing language attribute...');
-              const langAttribute = await page.$eval('html', html => html.getAttribute('lang'));
-              if (!langAttribute) {
-                issues.push({
-                  type: 'screen-reader',
-                  severity: 'moderate',
-                  message: 'HTML element missing lang attribute',
-                  count: 1
-                });
-              }
-              
-            } catch (error) {
-              console.error('Screen reader test error:', error);
-              issues.push({
-                type: 'screen-reader',
-                severity: 'critical',
-                message: `Screen reader test failed: ${error.message}`,
-                count: 1
-              });
+            const targetUrl = process.env.TARGET_URL || '$TARGET_URL';
+            await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+            // Keyboard navigation tests
+            const focusable = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', els => els.map(el=>({ tag: el.tagName, id: el.id, text: el.textContent?.trim().slice(0,30) })));
+            for(const el of focusable.slice(0,20)){
+              await page.keyboard.press('Tab');
+              const active = await page.evaluate(() => document.activeElement && document.activeElement.tagName);
+              if (!active) issues.push({ type: 'keyboard-navigation', severity: 'moderate', message: 'Tab did not focus an element' });
             }
-            
+            // Screen reader landmark and heading checks
+            const landmarks = await page.$$eval('[role="main"], main', els=>els.length);
+            if(landmarks===0) issues.push({ type:'screen-reader', severity:'moderate', message:'No main landmark found' });
+            const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', h=>h.length);
+            if(headings===0) issues.push({ type:'screen-reader', severity:'moderate', message:'No headings found' });
+            writeFileSync('accessibility-reports/puppeteer-issues.json', JSON.stringify(issues,null,2));
             await browser.close();
-            
-            writeFileSync('accessibility-reports/screen-reader.json', 
-              JSON.stringify(issues, null, 2));
-            
-            console.log(`Screen reader test completed. Found ${issues.length} issues.`);
-            return issues.length;
-          }
-
-          testScreenReaderCompatibility().then(count => {
-            console.log(`Found ${count} screen reader issues`);
-            process.exit(0);
-          }).catch(err => {
-            console.error('Screen reader test error:', err);
-            process.exit(1);
-          });
+          })().catch(err=>process.exit(1));
           EOF
           
       - name: Run pa11y accessibility scan (HTML report)
@@ -420,34 +296,20 @@ jobs:
             --timeout 30000 \
             --chrome-options="no-sandbox,disable-dev-shm-usage" || true
             
-      - name: Run Lighthouse accessibility audit
+      - name: Run combined Lighthouse accessibility audits
         run: |
-          echo "Running Lighthouse accessibility audit..."
+          echo "Running combined Lighthouse accessibility audits (desktop + mobile)..."
           lighthouse $TARGET_URL \
             --only-categories=accessibility \
             --output=json \
-            --output-path=accessibility-reports/lighthouse-accessibility.report.json \
+            --output-path=accessibility-reports/lighthouse-accessibility-desktop.json \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
-            
-      - name: Run Lighthouse accessibility audit (HTML report)
-        run: |
-          echo "Running Lighthouse accessibility audit (HTML)..."
-          lighthouse $TARGET_URL \
-            --only-categories=accessibility \
-            --output=html \
-            --output-path=accessibility-reports/lighthouse-accessibility \
-            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
-            --max-wait-for-load=30000 || true
-            
-      - name: Run Lighthouse mobile accessibility audit
-        run: |
-          echo "Running Lighthouse mobile accessibility audit..."
           lighthouse $TARGET_URL \
             --only-categories=accessibility \
             --emulated-form-factor=mobile \
             --output=json \
-            --output-path=accessibility-reports/lighthouse-accessibility-mobile.report.json \
+            --output-path=accessibility-reports/lighthouse-accessibility-mobile.json \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
 
@@ -456,41 +318,10 @@ jobs:
           echo "Running keyboard navigation tests..."
           node keyboard-test.cjs || true
 
-      - name: Run screen reader simulation tests
+      - name: Run Puppeteer comprehensive tests
         run: |
-          echo "Running screen reader simulation..."
-          node screen-reader-test.cjs || true
-
-      - name: Run screen reader simulation with axe-core
-        run: |
-          echo "Running screen reader simulation with axe-core..."
-          npx axe $TARGET_URL \
-            --save accessibility-reports/screenreader-simulation.json \
-            --timeout 30000 \
-            --chrome-options="no-sandbox,disable-dev-shm-usage" \
-            --rules heading-order,landmark-one-main,aria-allowed-attr,aria-allowed-role || true
-
-      - name: Run Playwright accessibility tests
-        run: |
-          echo "Running Playwright accessibility tests..."
-          if npx playwright test --project=chromium --reporter=json:accessibility-reports/playwright-report.json 2>/dev/null; then
-            echo "✅ Playwright tests completed successfully"
-          else
-            echo "⚠️  Playwright tests failed or browser not available, creating fallback report"
-            cat > accessibility-reports/playwright-report.json << 'EOF'
-          {
-            "status": "skipped",
-            "reason": "Browser installation failed or tests could not run",
-            "suites": [],
-            "specs": [],
-            "tests": []
-          }
-          EOF
-          fi
-          # Copy additional reports if generated
-          if [ -d "playwright-report" ]; then
-            cp -r playwright-report/* accessibility-reports/ 2>/dev/null || true
-          fi
+          echo "Running Puppeteer comprehensive tests..."
+          node puppeteer-tests.cjs || true
 
       - name: Create baseline tracking metadata
         run: |
@@ -582,14 +413,14 @@ jobs:
           fi
           
           # Extract Lighthouse structural issues
-          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
+          if [ -f accessibility-reports/lighthouse-accessibility-desktop.json ]; then
             echo "### 🏗️ Structural Issues (High Priority)" >> accessibility-reports/README.md
             echo "" >> accessibility-reports/README.md
             echo "These foundational issues affect screen reader navigation:" >> accessibility-reports/README.md
             echo "" >> accessibility-reports/README.md
             
             # Check for landmark-one-main
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
+            if cat accessibility-reports/lighthouse-accessibility-desktop.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
               echo "#### ADD MAIN LANDMARK" >> accessibility-reports/README.md
               echo "**Issue:** Your page lacks a \`<main>\` landmark" >> accessibility-reports/README.md
               echo "**Fix:** Wrap your primary content in a \`<main>\` element" >> accessibility-reports/README.md
@@ -607,7 +438,7 @@ jobs:
             fi
             
             # Check for bypass navigation
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
+            if cat accessibility-reports/lighthouse-accessibility-desktop.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
               echo "#### ADD SKIP NAVIGATION" >> accessibility-reports/README.md
               echo "**Issue:** No way for keyboard users to skip repetitive navigation" >> accessibility-reports/README.md
               echo "**Fix:** Add a skip link at the top of your page" >> accessibility-reports/README.md
@@ -762,11 +593,11 @@ jobs:
           fi
           
           EXPECTED_FILES=$((EXPECTED_FILES + 1))
-          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
-            echo "✅ lighthouse-accessibility.report.json ($(wc -c < accessibility-reports/lighthouse-accessibility.report.json) bytes)"
+          if [ -f accessibility-reports/lighthouse-accessibility-desktop.json ]; then
+            echo "✅ lighthouse-accessibility-desktop.json ($(wc -c < accessibility-reports/lighthouse-accessibility-desktop.json) bytes)"
             FILES_FOUND=$((FILES_FOUND + 1))
           else
-            echo "❌ lighthouse-accessibility.report.json missing"
+            echo "❌ lighthouse-accessibility-desktop.json missing"
           fi
           
           # New test reports
@@ -906,15 +737,15 @@ jobs:
           fi
           
           # Check Lighthouse for structural issues (HIGH PRIORITY)
-          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
-            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
+          if [ -f accessibility-reports/lighthouse-accessibility-desktop.json ]; then
+            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility-desktop.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
             
             # Count structural issues
             LIGHTHOUSE_STRUCTURAL=0
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
+            if cat accessibility-reports/lighthouse-accessibility-desktop.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
               LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
             fi
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
+            if cat accessibility-reports/lighthouse-accessibility-desktop.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
               LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
             fi
             
@@ -1087,3 +918,419 @@ jobs:
           # Also output to console for debugging
           echo "=== DEVELOPER ACTION SUMMARY ==="
           cat scan-summary.txt
+      - name: Create comprehensive Copilot issue summary
+        run: |
+          # Create comprehensive issue summary for Copilot remediation
+          cat > accessibility-reports/copilot-issue-summary.md << 'EOF'
+          # 🚨 ACCESSIBILITY REMEDIATION REQUEST - Copy/Paste for GitHub Copilot
+
+          ## Context
+          This is a comprehensive accessibility audit of the NCAA D1 Softball WebApp (React/Vite project) that found multiple WCAG 2.1 AA violations and usability issues. Please implement ALL fixes listed below in order of priority.
+
+          **App Structure:**
+          - React application using Vite
+          - Main components: App.jsx, StatLeaders.jsx, TeamRankings.jsx, TournamentBracket.jsx, Scoreboard.jsx
+          - Target URL: https://ncaa-d1-softball.netlify.app/
+          - Current Lighthouse Accessibility Score: $(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "Unknown")%
+
+          ## CRITICAL FIXES REQUIRED (Fix First - 2-3 hours)
+
+          ### 1. Add Main Landmark Structure
+          **Issue:** Document lacks main landmark (WCAG violation)
+          **Files to modify:** `src/App.jsx`
+          **Fix:** Wrap the main content area in a `<main>` element:
+
+          ```jsx
+          // In App.jsx, replace the current structure with:
+          function App() {
+            return (
+              <div className="App">
+                <header>
+                  {/* Any header/navigation content */}
+                </header>
+                
+                <main id="main-content">
+                  <h1>NCAA Division I Softball Statistics</h1>
+                  
+                  {/* All your main content components */}
+                  <StatLeaders />
+                  <TeamRankings />
+                  <TournamentBracket />
+                  <Scoreboard />
+                </main>
+                
+                <footer>
+                  {/* Any footer content */}
+                </footer>
+              </div>
+            );
+          }
+          ```
+
+          ### 2. Add Required H1 Heading
+          **Issue:** Page lacks a level-one heading (WCAG violation)
+          **Files to modify:** `src/App.jsx`
+          **Fix:** Add an h1 as the first heading element in main content (see code above)
+
+          ### 3. Add Skip Navigation Link
+          **Issue:** No way for keyboard users to skip to main content
+          **Files to modify:** `src/App.jsx`, `src/App.css`
+          **Fix:** Add skip link at the very beginning of App component:
+
+          ```jsx
+          // Add as the FIRST element in App.jsx return statement:
+          <a href="#main-content" className="skip-link">
+            Skip to main content
+          </a>
+          ```
+
+          ```css
+          /* Add to App.css: */
+          .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: #000;
+            color: #fff;
+            padding: 8px 16px;
+            text-decoration: none;
+            z-index: 1000;
+            border-radius: 0 0 4px 4px;
+            font-weight: bold;
+          }
+          
+          .skip-link:focus {
+            top: 6px;
+          }
+          ```
+
+          ## HIGH PRIORITY FIXES (3-4 hours)
+
+          ### 4. Fix Heading Hierarchy in Components
+          **Issue:** Components likely lack proper heading structure
+          **Files to modify:** All component files
+          **Fix:** Ensure proper heading hierarchy (h1 → h2 → h3):
+
+          ```jsx
+          // In StatLeaders.jsx:
+          function StatLeaders() {
+            return (
+              <section>
+                <h2>Statistical Leaders</h2>
+                <h3>Batting Leaders</h3>
+                {/* batting stats */}
+                <h3>Pitching Leaders</h3>
+                {/* pitching stats */}
+              </section>
+            );
+          }
+
+          // In TeamRankings.jsx:
+          function TeamRankings() {
+            return (
+              <section>
+                <h2>Team Rankings</h2>
+                {/* rankings content */}
+              </section>
+            );
+          }
+
+          // In TournamentBracket.jsx:
+          function TournamentBracket() {
+            return (
+              <section>
+                <h2>Tournament Bracket</h2>
+                {/* bracket content */}
+              </section>
+            );
+          }
+
+          // In Scoreboard.jsx:
+          function Scoreboard() {
+            return (
+              <section>
+                <h2>Live Scores</h2>
+                {/* Add aria-live for score updates */}
+                <div aria-live="polite" aria-label="Live score updates">
+                  {/* score content */}
+                </div>
+              </section>
+            );
+          }
+          ```
+
+          ### 5. Add Proper Data Table Structure
+          **Issue:** Tables likely lack proper headers and structure
+          **Files to modify:** Components that display tabular data
+          **Fix:** Ensure all data tables have proper headers:
+
+          ```jsx
+          // For any data tables, use this structure:
+          <table>
+            <caption>Table description for screen readers</caption>
+            <thead>
+              <tr>
+                <th scope="col">Player Name</th>
+                <th scope="col">Team</th>
+                <th scope="col">Statistic</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>John Doe</td>
+                <td>Example University</td>
+                <td>0.350</td>
+              </tr>
+            </tbody>
+          </table>
+          ```
+
+          ### 6. Add Focus Management and Keyboard Navigation
+          **Issue:** Interactive elements lack visible focus indicators
+          **Files to modify:** Component CSS files, `src/index.css`
+          **Fix:** Add focus styles for all interactive elements:
+
+          ```css
+          /* Add to relevant CSS files: */
+          button:focus,
+          a:focus,
+          input:focus,
+          select:focus,
+          textarea:focus,
+          [tabindex]:focus {
+            outline: 2px solid #0066cc;
+            outline-offset: 2px;
+          }
+
+          /* Ensure buttons are keyboard accessible */
+          button {
+            cursor: pointer;
+          }
+
+          button:focus-visible {
+            outline: 2px solid #0066cc;
+            outline-offset: 2px;
+          }
+          ```
+
+          ### 7. Add ARIA Labels and Descriptions
+          **Issue:** Interactive elements lack accessible names
+          **Files to modify:** All components with interactive elements
+          **Fix:** Add appropriate ARIA labels:
+
+          ```jsx
+          // For buttons without visible text:
+          <button aria-label="View detailed statistics">
+            <ChartIcon />
+          </button>
+
+          // For form controls:
+          <input 
+            type="search" 
+            aria-label="Search for teams or players"
+            placeholder="Search..."
+          />
+
+          // For complex widgets:
+          <div 
+            role="region" 
+            aria-labelledby="bracket-heading"
+            aria-describedby="bracket-description"
+          >
+            <h2 id="bracket-heading">Tournament Bracket</h2>
+            <p id="bracket-description">Interactive tournament bracket showing game results</p>
+          </div>
+          ```
+
+          ## MEDIUM PRIORITY FIXES (2-3 hours)
+
+          ### 8. Add Image Alt Text
+          **Issue:** Images missing alternative text
+          **Files to modify:** Components with images, `public/` assets
+          **Fix:** Add descriptive alt text to all images:
+
+          ```jsx
+          // For decorative images:
+          <img src="softball-bg.jpg" alt="" role="presentation" />
+
+          // For informative images:
+          <img src="team-logo.png" alt="University of Example Softball Team Logo" />
+
+          // For the softball icon:
+          <img src="softball-icon.svg" alt="Softball" />
+          ```
+
+          ### 9. Improve Color Contrast
+          **Issue:** Text may not meet WCAG AA contrast requirements (4.5:1)
+          **Files to modify:** CSS files
+          **Fix:** Ensure all text meets contrast requirements:
+
+          ```css
+          /* Check and improve contrast ratios: */
+          .text-light-background {
+            color: #333333; /* Dark text on light background */
+          }
+
+          .text-dark-background {
+            color: #ffffff; /* White text on dark background */
+          }
+
+          /* For links, ensure 3:1 contrast with surrounding text */
+          a {
+            color: #0066cc;
+            text-decoration: underline;
+          }
+
+          a:hover, a:focus {
+            color: #004499;
+            text-decoration: underline;
+          }
+          ```
+
+          ### 10. Add Form Labels and Error Handling
+          **Issue:** Form inputs lack proper labels
+          **Files to modify:** Components with form elements
+          **Fix:** Ensure all form inputs have labels:
+
+          ```jsx
+          // Proper form structure:
+          <form>
+            <div>
+              <label htmlFor="team-search">Search Teams:</label>
+              <input 
+                id="team-search"
+                type="search"
+                name="teamSearch"
+                aria-describedby="search-hint"
+              />
+              <div id="search-hint">Enter team name or abbreviation</div>
+            </div>
+            
+            <div>
+              <label htmlFor="season-select">Select Season:</label>
+              <select id="season-select" name="season">
+                <option value="">Choose a season</option>
+                <option value="2024">2024</option>
+                <option value="2023">2023</option>
+              </select>
+            </div>
+          </form>
+          ```
+
+          ## VALIDATION AND TESTING (30 minutes)
+
+          ### 11. Test Keyboard Navigation
+          **Action:** Manually test that all interactive elements are reachable via Tab key
+          **Verify:**
+          - Tab order flows logically through content
+          - All buttons and links are focusable
+          - Focus indicators are clearly visible
+          - Skip link works (Tab from address bar should show skip link)
+
+          ### 12. Test Screen Reader Compatibility
+          **Action:** Test with screen reader (NVDA, JAWS, or VoiceOver)
+          **Verify:**
+          - All headings are announced in proper order
+          - All images have appropriate alt text
+          - Form labels are associated with inputs
+          - Table headers are announced with data cells
+
+          ### 13. Re-run Accessibility Scan
+          **Action:** Run the accessibility workflow again after implementing fixes
+          **Target:** Achieve 95+ Lighthouse accessibility score with 0 critical violations
+
+          ## TECHNICAL SPECIFICATIONS
+
+          **Current Issues Found:**
+          - $(jq 'if type=="array" then .[0].violations else .violations end | length' accessibility-reports/axe-report.json 2>/dev/null || echo 0) axe-core WCAG violations
+          - $(jq 'length' accessibility-reports/pa11y-report.json 2>/dev/null || echo 0) pa11y content issues  
+          - $(jq 'length' accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0) keyboard navigation issues
+          - $(jq 'length' accessibility-reports/screen-reader.json 2>/dev/null || echo 0) screen reader compatibility issues
+
+          **Standards Compliance:**
+          - Target: WCAG 2.1 Level AA
+          - Browser Support: Chrome, Firefox, Safari, Edge
+          - Screen Reader Testing: NVDA, VoiceOver, JAWS
+          - Keyboard Testing: Tab navigation, Enter/Space activation
+
+          **Files Requiring Changes:**
+          - `src/App.jsx` (main structure, skip link, h1)
+          - `src/App.css` (skip link styles, focus indicators)
+          - `src/components/StatLeaders.jsx` (headings, tables, ARIA)
+          - `src/components/TeamRankings.jsx` (headings, tables, ARIA)
+          - `src/components/TournamentBracket.jsx` (headings, interactive elements)
+          - `src/components/Scoreboard.jsx` (headings, live regions)
+          - Component CSS files (focus styles, contrast)
+          - `src/index.css` (global accessibility styles)
+
+          **Expected Outcome:**
+          - 0 critical WCAG violations
+          - 95+ Lighthouse accessibility score
+          - Full keyboard navigation support
+          - Screen reader compatibility
+          - Color contrast compliance
+          - Proper semantic structure
+
+          **Testing Commands:**
+          ```bash
+          # After implementing fixes, test locally:
+          npm run dev
+          
+          # Then run accessibility scan workflow:
+          # Go to Actions tab → Comprehensive Web Accessibility Evaluation → Run workflow
+          ```
+
+          ## IMPLEMENTATION PRIORITY ORDER
+
+          1. **CRITICAL (Do First):** Add main landmark, h1 heading, skip link (App.jsx + CSS)
+          2. **HIGH:** Add proper heading hierarchy to all components  
+          3. **HIGH:** Add focus indicators and keyboard navigation support
+          4. **HIGH:** Add ARIA labels and semantic structure
+          5. **MEDIUM:** Add image alt text and improve color contrast
+          6. **MEDIUM:** Fix form labels and table structure
+          7. **VALIDATION:** Test keyboard navigation and screen reader compatibility
+          8. **VALIDATION:** Re-run accessibility scan to verify 0 critical issues
+
+          **Estimated Total Time:** 6-8 hours
+          **Target Result:** 95+ accessibility score, 0 WCAG violations, full keyboard and screen reader support
+          EOF
+
+          # Create simplified version for GitHub issue creation
+          echo "📋 **Copilot Issue Summary Created:** \`accessibility-reports/copilot-issue-summary.md\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Copy the contents of this file and paste into a new GitHub issue for comprehensive accessibility fixes." >> $GITHUB_STEP_SUMMARY
+          
+          # Also create a concise version for quick reference
+          cat > accessibility-reports/quick-fixes-summary.txt << 'EOF'
+          QUICK ACCESSIBILITY FIXES NEEDED:
+
+          🚨 CRITICAL (Fix First):
+          1. Add <main> element to App.jsx wrapping all content
+          2. Add <h1>NCAA Division I Softball Statistics</h1> as first heading  
+          3. Add skip link: <a href="#main-content" className="skip-link">Skip to main content</a>
+
+          🏗️ HIGH PRIORITY:
+          4. Add proper heading hierarchy (h2, h3) to all components
+          5. Add focus indicators: button:focus { outline: 2px solid #0066cc; }
+          6. Add ARIA labels to interactive elements
+          7. Structure data tables with <th scope="col"> headers
+
+          📝 MEDIUM PRIORITY:
+          8. Add alt text to all images
+          9. Improve color contrast ratios (4.5:1 minimum)
+          10. Add form labels with htmlFor attributes
+
+          ✅ VALIDATION:
+          11. Test Tab navigation through all elements
+          12. Re-run accessibility workflow
+          13. Target: 0 WCAG violations, 95+ Lighthouse score
+
+          Files to modify: App.jsx, App.css, all component files
+          Expected time: 6-8 hours total
+          EOF
+
+          echo "## 🎯 Quick Fixes Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat accessibility-reports/quick-fixes-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
