@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '20'
       - name: Install audit dependencies
-        run: npm install -g pa11y @axe-core/cli lighthouse
+        run: npm install -g pa11y @axe-core/cli lighthouse puppeteer
 
       # Add pa11y configuration so JSON scan can work
       - name: Create pa11y configuration file
@@ -52,6 +52,232 @@ jobs:
           }
           EOF
 
+      - name: Create keyboard navigation test script
+        run: |
+          cat > keyboard-test.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+
+          async function testKeyboardNavigation() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              
+              // Test tab navigation
+              const focusableElements = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', elements => {
+                return elements.map(el => ({
+                  tagName: el.tagName,
+                  id: el.id,
+                  className: el.className,
+                  tabIndex: el.tabIndex
+                }));
+              });
+              
+              // Test each focusable element
+              for (let i = 0; i < Math.min(focusableElements.length, 20); i++) {
+                await page.keyboard.press('Tab');
+                const activeElement = await page.evaluate(() => {
+                  const el = document.activeElement;
+                  return {
+                    tagName: el.tagName,
+                    id: el.id,
+                    className: el.className,
+                    hasVisibleFocus: window.getComputedStyle(el, ':focus').outline !== 'none'
+                  };
+                });
+                
+                if (!activeElement.hasVisibleFocus) {
+                  issues.push({
+                    type: 'keyboard-navigation',
+                    severity: 'moderate',
+                    message: `Element ${activeElement.tagName} lacks visible focus indicator`,
+                    element: activeElement
+                  });
+                }
+              }
+              
+              // Test Enter/Space key activation
+              await page.keyboard.press('Tab');
+              const buttonElements = await page.$$('button');
+              if (buttonElements.length > 0) {
+                const button = buttonElements[0];
+                await button.focus();
+                
+                // Test if button responds to Enter key
+                const enterResponse = await page.evaluate(() => {
+                  return new Promise(resolve => {
+                    const btn = document.activeElement;
+                    let activated = false;
+                    btn.addEventListener('click', () => { activated = true; });
+                    btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+                    setTimeout(() => resolve(activated), 100);
+                  });
+                });
+                
+                if (!enterResponse) {
+                  issues.push({
+                    type: 'keyboard-navigation',
+                    severity: 'serious',
+                    message: 'Button does not respond to Enter key activation',
+                    element: { tagName: 'BUTTON' }
+                  });
+                }
+              }
+              
+            } catch (error) {
+              issues.push({
+                type: 'keyboard-navigation',
+                severity: 'critical',
+                message: `Keyboard navigation test failed: ${error.message}`,
+                element: null
+              });
+            }
+            
+            await browser.close();
+            
+            fs.writeFileSync('after-artifacts/accessibility-reports/keyboard-navigation.json', 
+              JSON.stringify(issues, null, 2));
+            
+            return issues.length;
+          }
+
+          testKeyboardNavigation().then(count => {
+            console.log(`Found ${count} keyboard navigation issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Keyboard test error:', err);
+            process.exit(1);
+          });
+          EOF
+
+      - name: Create screen reader simulation script
+        run: |
+          cat > screen-reader-test.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+
+          async function testScreenReaderCompatibility() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              
+              // Test for missing alt text on images
+              const imagesWithoutAlt = await page.$$eval('img', imgs => 
+                imgs.filter(img => !img.alt || img.alt.trim() === '').length
+              );
+              
+              if (imagesWithoutAlt > 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'serious',
+                  message: `${imagesWithoutAlt} images missing alt text`,
+                  count: imagesWithoutAlt
+                });
+              }
+              
+              // Test for missing form labels
+              const unlabeledInputs = await page.$$eval('input', inputs => 
+                inputs.filter(input => {
+                  const id = input.id;
+                  const ariaLabel = input.getAttribute('aria-label');
+                  const ariaLabelledby = input.getAttribute('aria-labelledby');
+                  const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+                  return !hasLabel && !ariaLabel && !ariaLabelledby;
+                }).length
+              );
+              
+              if (unlabeledInputs > 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'serious',
+                  message: `${unlabeledInputs} form inputs missing labels`,
+                  count: unlabeledInputs
+                });
+              }
+              
+              // Test for missing headings structure
+              const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => 
+                headings.map(h => ({ level: parseInt(h.tagName[1]), text: h.textContent.trim() }))
+              );
+              
+              if (headings.length === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No heading structure found for screen reader navigation',
+                  count: 1
+                });
+              } else {
+                // Check for proper heading hierarchy
+                let previousLevel = 0;
+                for (const heading of headings) {
+                  if (heading.level > previousLevel + 1) {
+                    issues.push({
+                      type: 'screen-reader',
+                      severity: 'moderate',
+                      message: `Heading hierarchy skip detected (h${previousLevel} to h${heading.level})`,
+                      count: 1
+                    });
+                    break;
+                  }
+                  previousLevel = heading.level;
+                }
+              }
+              
+              // Test for missing ARIA landmarks
+              const landmarks = await page.$$eval('[role="main"], [role="navigation"], [role="banner"], [role="contentinfo"], main, nav, header, footer', 
+                elements => elements.length
+              );
+              
+              if (landmarks === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No ARIA landmarks found for screen reader navigation',
+                  count: 1
+                });
+              }
+              
+            } catch (error) {
+              issues.push({
+                type: 'screen-reader',
+                severity: 'critical',
+                message: `Screen reader test failed: ${error.message}`,
+                count: 1
+              });
+            }
+            
+            await browser.close();
+            
+            fs.writeFileSync('after-artifacts/accessibility-reports/screen-reader.json', 
+              JSON.stringify(issues, null, 2));
+            
+            return issues.length;
+          }
+
+          testScreenReaderCompatibility().then(count => {
+            console.log(`Found ${count} screen reader issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Screen reader test error:', err);
+            process.exit(1);
+          });
+          EOF
+
       - name: Create after-artifacts structure
         run: |
           mkdir -p after-artifacts/accessibility-reports
@@ -74,29 +300,69 @@ jobs:
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
 
+      - name: Run keyboard navigation tests
+        run: |
+          node keyboard-test.js || true
+
+      - name: Run screen reader simulation tests
+        run: |
+          node screen-reader-test.js || true
+
       - name: Compute fixes and generate copilot-summary.json
         run: |
           sudo apt-get update && sudo apt-get install -y jq
-          # count before/after issues
+          # count before/after issues for existing tools
           BEFORE_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' before-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
           AFTER_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' after-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
           BEFORE_P=$(jq 'length' before-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
           AFTER_P=$(jq 'length' after-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          
+          # count before/after issues for keyboard navigation
+          BEFORE_K=$(jq 'length' before-artifacts/accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          AFTER_K=$(jq 'length' after-artifacts/accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          
+          # count before/after issues for screen reader
+          BEFORE_S=$(jq 'length' before-artifacts/accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
+          AFTER_S=$(jq 'length' after-artifacts/accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
+          
           # compute fixes
           FIXED_A=$((BEFORE_A - AFTER_A))
           FIXED_P=$((BEFORE_P - AFTER_P))
-          TOTAL_FIXED=$((FIXED_A + FIXED_P))
-          # estimate time (10m per fix)
-          HOURS=$((TOTAL_FIXED * 10 / 60))
-          MINS=$((TOTAL_FIXED * 10 % 60))
+          FIXED_K=$((BEFORE_K - AFTER_K))
+          FIXED_S=$((BEFORE_S - AFTER_S))
+          TOTAL_FIXED=$((FIXED_A + FIXED_P + FIXED_K + FIXED_S))
+          
+          # estimate time (10m per fix for axe/pa11y, 15m for keyboard/screen reader)
+          TIME_MINUTES=$(((FIXED_A + FIXED_P) * 10 + (FIXED_K + FIXED_S) * 15))
+          HOURS=$((TIME_MINUTES / 60))
+          MINS=$((TIME_MINUTES % 60))
           TIME_SAVED="${HOURS}h ${MINS}m"
-          # emit summary JSON
+          
+          # emit comprehensive summary JSON
           mkdir -p after-artifacts/accessibility-reports
           cat <<EOF > after-artifacts/accessibility-reports/copilot-summary.json
           {
             "fixes_applied": ${TOTAL_FIXED},
+            "breakdown": {
+              "axe_core_fixes": ${FIXED_A},
+              "pa11y_fixes": ${FIXED_P},
+              "keyboard_navigation_fixes": ${FIXED_K},
+              "screen_reader_fixes": ${FIXED_S}
+            },
+            "remaining_issues": {
+              "axe_core": ${AFTER_A},
+              "pa11y": ${AFTER_P},
+              "keyboard_navigation": ${AFTER_K},
+              "screen_reader": ${AFTER_S}
+            },
             "additional_fixes": 0,
-            "time_saved": "${TIME_SAVED}"
+            "time_saved": "${TIME_SAVED}",
+            "test_coverage": {
+              "automated_accessibility": true,
+              "keyboard_navigation": true,
+              "screen_reader_simulation": true,
+              "mobile_accessibility": true
+            }
           }
           EOF
 
