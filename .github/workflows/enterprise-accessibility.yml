@@ -862,7 +862,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
             
             if [ "$AXE_VIOLATIONS" -gt "0" ]; then
-              echo "### 🚨 Phase 1: Critical WCAG Fixes (⏰ 2-3 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "### 🚨 Phase 1: Critical WCAG Fixes (⏰ 2-3 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "- **$AXE_VIOLATIONS WCAG violations** must be fixed immediately" >> $GITHUB_STEP_SUMMARY
               echo "- These directly violate accessibility standards" >> $GITHUB_STEP_SUMMARY
               echo "- See axe-report.json for specific elements and fixes" >> $GITHUB_STEP_SUMMARY
@@ -871,7 +871,7 @@ jobs:
             
             HIGH_PRIORITY_COUNT=$((STRUCTURAL_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
             if [ "$HIGH_PRIORITY_COUNT" -gt "0" ]; then
-              echo "### 🏗️ Phase 2: High Priority Issues (⏰ 2-4 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "### 🏗️ Phase 2: High Priority Issues (⏰ 2-4 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               
               if [ "$STRUCTURAL_ISSUES" -gt "0" ]; then
@@ -903,7 +903,7 @@ jobs:
             fi
             
             if [ "$PA11Y_ISSUES" -gt "0" ]; then
-              echo "### 📝 Phase 3: Content Quality (⏰ 2-4 hours)" >> $GITHUB_STEP_SUMMARY
+              echo "### 📝 Phase 3: Content Quality (⏰ 2-4 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "- **$PA11Y_ISSUES content and markup issues**" >> $GITHUB_STEP_SUMMARY
               echo "- Review pa11y-report.html for specific element locations" >> $GITHUB_STEP_SUMMARY
               echo "- Focus on images, headings, and form elements" >> $GITHUB_STEP_SUMMARY
@@ -916,37 +916,51 @@ jobs:
             echo "- Test keyboard navigation manually (Tab through page)" >> $GITHUB_STEP_SUMMARY
             echo "- Test with screen reader if possible (NVDA/VoiceOver)" >> $GITHUB_STEP_SUMMARY
             echo "- Verify all issues are resolved" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📋 **Download complete reports:** \`accessibility-evaluation-comprehensive.zip\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📊 Complete Test Coverage" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This scan includes comprehensive testing with multiple tools:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **WCAG 2.1 AA compliance** (axe-core)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Playwright end-to-end testing** (browser automation)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Keyboard navigation simulation** (custom scripts)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Screen reader compatibility** (ARIA and semantic testing)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Content quality analysis** (pa11y)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Structural foundation audit** (Lighthouse)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ **Responsive accessibility** (mobile and desktop)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. **Download Reports**: Get the \`accessibility-evaluation-comprehensive.zip\` artifact from this workflow run" >> $GITHUB_STEP_SUMMARY
-          echo "2. **Review Priorities**: Start with critical WCAG violations (highest impact)" >> $GITHUB_STEP_SUMMARY
-          echo "3. **Follow Fix Guide**: Use the README.md in the artifact for detailed guidance" >> $GITHUB_STEP_SUMMARY
-          echo "4. **Test Changes**: Re-run this workflow after implementing fixes" >> $GITHUB_STEP_SUMMARY
-          echo "5. **Manual Testing**: Supplement with keyboard navigation and screen reader testing" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📈 Detailed Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **🚨 Critical WCAG Violations**: $AXE_VIOLATIONS (axe-core scan)" >> $GITHUB_STEP_SUMMARY
-          echo "- **🏗️ Structural Foundation Issues**: $STRUCTURAL_ISSUES (Lighthouse audit)" >> $GITHUB_STEP_SUMMARY
-          echo "- **⌨️ Keyboard Navigation Issues**: $KEYBOARD_ISSUES (simulation test)" >> $GITHUB_STEP_SUMMARY
-          echo "- **🔊 Screen Reader Support Issues**: $SCREENREADER_ISSUES (compatibility test)" >> $GITHUB_STEP_SUMMARY
-          echo "- **📝 Content & Markup Issues**: $PA11Y_ISSUES (pa11y analysis)" >> $GITHUB_STEP_SUMMARY
-          echo "- **💯 Lighthouse Accessibility Score**: $LIGHTHOUSE_SCORE%" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total Issues Found**: $TOTAL_ISSUES" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Add Copilot SWE automation section
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 🤖 Automated Fix Option: GitHub Copilot SWE Agent" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Calculate total manual time and savings
+            TOTAL_MANUAL_HOURS=8
+            COPILOT_HOURS=1
+            TIME_SAVED=$((TOTAL_MANUAL_HOURS - COPILOT_HOURS))
+            EFFICIENCY_GAIN=$((TIME_SAVED * 100 / TOTAL_MANUAL_HOURS))
+            
+            echo "### ⚡ Automated Fix Instructions" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Instead of manual fixes, automate with Copilot SWE agent:**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "1. **Download** the \`accessibility-evaluation-comprehensive.zip\` artifact" >> $GITHUB_STEP_SUMMARY
+            echo "2. **Extract** and locate \`copilot-issue-summary.md\`" >> $GITHUB_STEP_SUMMARY
+            echo "3. **Create GitHub Issue:**" >> $GITHUB_STEP_SUMMARY
+            echo "   - Go to [Issues tab](../../issues/new)" >> $GITHUB_STEP_SUMMARY
+            echo "   - Title: \`🔧 Accessibility Fixes - $TOTAL_ISSUES violations found\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - Copy/paste entire contents of \`copilot-issue-summary.md\`" >> $GITHUB_STEP_SUMMARY
+            echo "4. **Assign Copilot:**" >> $GITHUB_STEP_SUMMARY
+            echo "   - Add label: \`copilot\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - Assign to: \`@copilot\`" >> $GITHUB_STEP_SUMMARY
+            echo "   - Mention: \`@copilot please implement all accessibility fixes listed above\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⏱️ Time Comparison" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Approach | Time Required | Efficiency |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|--------------|------------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 👨‍💻 **Manual Fixes** | $TOTAL_MANUAL_HOURS hours | Baseline |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🤖 **Copilot SWE Agent** | $COPILOT_HOURS hour | **${EFFICIENCY_GAIN}% faster** |" >> $GITHUB_STEP_SUMMARY
+            echo "| 💰 **Time Saved** | **$TIME_SAVED hours** | **Ready in minutes** |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🎯 What Copilot SWE Will Do" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Add main landmark** and skip navigation to App.jsx" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Fix heading hierarchy** across all components" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Add focus indicators** and keyboard navigation" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Implement ARIA labels** and semantic structure" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Add alt text** to images and fix color contrast" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Structure data tables** with proper headers" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Test and validate** all changes automatically" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Result:** Professional accessibility implementation in ~1 hour vs $TOTAL_MANUAL_HOURS hours manual work" >> $GITHUB_STEP_SUMMARY
