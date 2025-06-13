@@ -59,8 +59,8 @@ jobs:
       - name: Create keyboard navigation test script
         run: |
           cat > keyboard-test.js << 'EOF'
-          import puppeteer from 'puppeteer';
-          import { writeFileSync } from 'fs';
+          const puppeteer = require('puppeteer');
+          const { writeFileSync } = require('fs');
 
           async function testKeyboardNavigation() {
             const browser = await puppeteer.launch({
@@ -73,32 +73,53 @@ jobs:
             
             try {
               const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
-              await page.goto(targetUrl, { waitUntil: 'networkidle0' });
+              console.log(`Testing keyboard navigation on: ${targetUrl}`);
+              await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
               
               // Test tab navigation
+              console.log('Testing focusable elements...');
               const focusableElements = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', elements => {
                 return elements.map(el => ({
                   tagName: el.tagName,
                   id: el.id,
                   className: el.className,
-                  tabIndex: el.tabIndex
+                  tabIndex: el.tabIndex,
+                  textContent: el.textContent ? el.textContent.trim().substring(0, 50) : ''
                 }));
               });
               
-              // Test each focusable element
-              for (let i = 0; i < Math.min(focusableElements.length, 20); i++) {
+              console.log(`Found ${focusableElements.length} focusable elements`);
+              
+              // Test each focusable element (limit to 20 for performance)
+              const elementsToTest = Math.min(focusableElements.length, 20);
+              for (let i = 0; i < elementsToTest; i++) {
                 await page.keyboard.press('Tab');
+                
                 const activeElement = await page.evaluate(() => {
                   const el = document.activeElement;
+                  if (!el) return null;
+                  
+                  const computedStyle = window.getComputedStyle(el);
+                  const pseudoStyle = window.getComputedStyle(el, ':focus');
+                  
                   return {
                     tagName: el.tagName,
                     id: el.id,
                     className: el.className,
-                    hasVisibleFocus: window.getComputedStyle(el, ':focus').outline !== 'none'
+                    textContent: el.textContent ? el.textContent.trim().substring(0, 30) : '',
+                    hasVisibleFocus: (
+                      computedStyle.outline !== 'none' ||
+                      computedStyle.outlineWidth !== '0px' ||
+                      computedStyle.outlineStyle !== 'none' ||
+                      computedStyle.boxShadow !== 'none' ||
+                      pseudoStyle.outline !== 'none' ||
+                      pseudoStyle.outlineWidth !== '0px' ||
+                      pseudoStyle.boxShadow !== 'none'
+                    )
                   };
                 });
                 
-                if (!activeElement.hasVisibleFocus) {
+                if (activeElement && !activeElement.hasVisibleFocus) {
                   issues.push({
                     type: 'keyboard-navigation',
                     severity: 'moderate',
@@ -108,8 +129,8 @@ jobs:
                 }
               }
               
-              // Test Enter/Space key activation
-              await page.keyboard.press('Tab');
+              // Test Enter/Space key activation on buttons
+              console.log('Testing button activation...');
               const buttonElements = await page.$$('button');
               if (buttonElements.length > 0) {
                 const button = buttonElements[0];
@@ -119,10 +140,32 @@ jobs:
                 const enterResponse = await page.evaluate(() => {
                   return new Promise(resolve => {
                     const btn = document.activeElement;
+                    if (!btn || btn.tagName !== 'BUTTON') {
+                      resolve(false);
+                      return;
+                    }
+                    
                     let activated = false;
-                    btn.addEventListener('click', () => { activated = true; });
-                    btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-                    setTimeout(() => resolve(activated), 100);
+                    const clickHandler = () => { activated = true; };
+                    
+                    btn.addEventListener('click', clickHandler);
+                    
+                    // Simulate Enter key press
+                    const enterEvent = new KeyboardEvent('keydown', { 
+                      key: 'Enter', 
+                      code: 'Enter',
+                      keyCode: 13,
+                      which: 13,
+                      bubbles: true,
+                      cancelable: true
+                    });
+                    
+                    btn.dispatchEvent(enterEvent);
+                    
+                    setTimeout(() => {
+                      btn.removeEventListener('click', clickHandler);
+                      resolve(activated);
+                    }, 100);
                   });
                 });
                 
@@ -136,7 +179,26 @@ jobs:
                 }
               }
               
+              // Test skip links
+              console.log('Testing skip links...');
+              const skipLinks = await page.$$eval('a[href^="#"]', links => {
+                return links.filter(link => {
+                  const text = link.textContent.toLowerCase();
+                  return text.includes('skip') || text.includes('main');
+                }).length;
+              });
+              
+              if (skipLinks === 0) {
+                issues.push({
+                  type: 'keyboard-navigation',
+                  severity: 'moderate',
+                  message: 'No skip links found for keyboard navigation',
+                  element: null
+                });
+              }
+              
             } catch (error) {
+              console.error('Keyboard navigation test error:', error);
               issues.push({
                 type: 'keyboard-navigation',
                 severity: 'critical',
@@ -150,6 +212,7 @@ jobs:
             writeFileSync('accessibility-reports/keyboard-navigation.json', 
               JSON.stringify(issues, null, 2));
             
+            console.log(`Keyboard navigation test completed. Found ${issues.length} issues.`);
             return issues.length;
           }
 
@@ -165,8 +228,8 @@ jobs:
       - name: Create screen reader simulation script
         run: |
           cat > screen-reader-test.js << 'EOF'
-          import puppeteer from 'puppeteer';
-          import { writeFileSync } from 'fs';
+          const puppeteer = require('puppeteer');
+          const { writeFileSync } = require('fs');
 
           async function testScreenReaderCompatibility() {
             const browser = await puppeteer.launch({
@@ -179,9 +242,11 @@ jobs:
             
             try {
               const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
-              await page.goto(targetUrl, { waitUntil: 'networkidle0' });
+              console.log(`Testing screen reader compatibility on: ${targetUrl}`);
+              await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
               
               // Test for missing alt text on images
+              console.log('Testing image alt text...');
               const imagesWithoutAlt = await page.$$eval('img', imgs => 
                 imgs.filter(img => !img.alt || img.alt.trim() === '').length
               );
@@ -196,6 +261,7 @@ jobs:
               }
               
               // Test for missing form labels
+              console.log('Testing form labels...');
               const unlabeledInputs = await page.$$eval('input', inputs => 
                 inputs.filter(input => {
                   const id = input.id;
@@ -216,6 +282,7 @@ jobs:
               }
               
               // Test for missing headings structure
+              console.log('Testing heading structure...');
               const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => 
                 headings.map(h => ({ level: parseInt(h.tagName[1]), text: h.textContent.trim() }))
               );
@@ -245,6 +312,7 @@ jobs:
               }
               
               // Test for missing ARIA landmarks
+              console.log('Testing ARIA landmarks...');
               const landmarks = await page.$$eval('[role="main"], [role="navigation"], [role="banner"], [role="contentinfo"], main, nav, header, footer', 
                 elements => elements.length
               );
@@ -258,7 +326,32 @@ jobs:
                 });
               }
               
+              // Test for missing page title
+              console.log('Testing page title...');
+              const pageTitle = await page.title();
+              if (!pageTitle || pageTitle.trim() === '') {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'Page missing descriptive title',
+                  count: 1
+                });
+              }
+              
+              // Test for missing language attribute
+              console.log('Testing language attribute...');
+              const langAttribute = await page.$eval('html', html => html.getAttribute('lang'));
+              if (!langAttribute) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'HTML element missing lang attribute',
+                  count: 1
+                });
+              }
+              
             } catch (error) {
+              console.error('Screen reader test error:', error);
               issues.push({
                 type: 'screen-reader',
                 severity: 'critical',
@@ -272,6 +365,7 @@ jobs:
             writeFileSync('accessibility-reports/screen-reader.json', 
               JSON.stringify(issues, null, 2));
             
+            console.log(`Screen reader test completed. Found ${issues.length} issues.`);
             return issues.length;
           }
 
