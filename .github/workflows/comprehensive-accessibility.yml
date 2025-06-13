@@ -29,7 +29,8 @@ jobs:
         
       - name: Install accessibility testing tools
         run: |
-          npm install -g pa11y @axe-core/cli lighthouse puppeteer
+          npm install -g pa11y @axe-core/cli lighthouse
+          npm install puppeteer --save-dev
           
       - name: Create reports directory
         run: mkdir -p accessibility-reports
