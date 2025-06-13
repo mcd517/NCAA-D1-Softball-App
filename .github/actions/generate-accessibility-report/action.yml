@@ -515,41 +515,29 @@ runs:
         ISSUE_SUMMARY_PATH="${{ inputs.report-dir }}/issue-summary.json"
         
         # Build priority actions array properly without trailing commas
-        PRIORITY_ACTIONS=""
+        PRIORITY_ACTIONS_ARRAY=()
         
         if [ "${{ inputs.axe-violations }}" -gt "0" ]; then
-          PRIORITY_ACTIONS="\"Fix ${{ inputs.axe-violations }} critical WCAG violations\""
+          PRIORITY_ACTIONS_ARRAY+=("\"Fix ${{ inputs.axe-violations }} critical WCAG violations\"")
         fi
         
         if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ]; then
-          if [ -n "$PRIORITY_ACTIONS" ]; then
-            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Improve Lighthouse accessibility score to 90+\""
-          else
-            PRIORITY_ACTIONS="\"Improve Lighthouse accessibility score to 90+\""
-          fi
+          PRIORITY_ACTIONS_ARRAY+=("\"Improve Lighthouse accessibility score to 90+\"")
         fi
         
         if [ "${{ inputs.pa11y-issues }}" -gt "0" ]; then
-          if [ -n "$PRIORITY_ACTIONS" ]; then
-            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\""
-          else
-            PRIORITY_ACTIONS="\"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\""
-          fi
+          PRIORITY_ACTIONS_ARRAY+=("\"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\"")
         fi
         
         if [ "${{ inputs.playwright-violations }}" -gt "0" ]; then
-          if [ -n "$PRIORITY_ACTIONS" ]; then
-            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\""
-          else
-            PRIORITY_ACTIONS="\"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\""
-          fi
+          PRIORITY_ACTIONS_ARRAY+=("\"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\"")
         fi
         
-        if [ -n "$PRIORITY_ACTIONS" ]; then
-          PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Re-run accessibility scan to verify fixes\""
-        else
-          PRIORITY_ACTIONS="\"Re-run accessibility scan to verify fixes\""
-        fi
+        # Always add the re-run action
+        PRIORITY_ACTIONS_ARRAY+=("\"Re-run accessibility scan to verify fixes\"")
+        
+        # Join array elements with commas (no trailing comma)
+        PRIORITY_ACTIONS=$(IFS=', '; echo "${PRIORITY_ACTIONS_ARRAY[*]}")
         
         cat > "$ISSUE_SUMMARY_PATH" << EOF
         {
