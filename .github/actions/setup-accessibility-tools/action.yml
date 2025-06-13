@@ -45,8 +45,12 @@ runs:
       with:
         path: |
           ~/.npm
-          ~/.cache/ms-playwright  # removed puppeteer cache
-        
+          ~/.cache/ms-playwright
+        key: accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-${{ hashFiles('package.json') }}
+        restore-keys: |
+          accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-
+          accessibility-tools-${{ runner.os }}-
+
     - name: Install accessibility testing tools
       shell: bash
       run: |
