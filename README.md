@@ -93,7 +93,7 @@ The server exposes the following endpoints:
 
 ## Accessibility
 
-This application includes automated weekly accessibility evaluation to ensure WCAG 2.1 AA compliance. The scans run every Monday and generate comprehensive reports available in GitHub Actions artifacts. See [Accessibility Documentation](.github/ACCESSIBILITY.md) for more details.
+This application includes comprehensive automated accessibility evaluation to ensure WCAG 2.1 AA compliance. The scans run every Monday and generate detailed reports available in GitHub Actions artifacts. The evaluation uses multiple industry-standard tools including axe-core, pa11y, Lighthouse, and Playwright for complete coverage. See [Accessibility Documentation](.github/ACCESSIBILITY.md) for more details.
 
 ## Contributing
 
