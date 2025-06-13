@@ -49,8 +49,9 @@ jobs:
             "timeout": 30000,
             "wait": 3000,
             "standard": "WCAG2AA",
+            "runners": ["htmlcs"],
             "ignore": [
-              "color-contrast"
+              "WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail"
             ]
           }
           EOF
@@ -58,17 +59,30 @@ jobs:
       - name: Run pa11y accessibility scan (HTML report)
         run: |
           echo "Running pa11y scan for HTML report..."
+          echo "DEBUG: pa11y version:"
+          pa11y --version
+          echo "DEBUG: Target URL: $TARGET_URL"
           pa11y $TARGET_URL --reporter html --config pa11y.json > accessibility-reports/pa11y-report.html || true
+          echo "DEBUG: pa11y HTML scan completed, checking file size:"
+          ls -la accessibility-reports/pa11y-report.html || echo "HTML report not found"
           
       - name: Run pa11y accessibility scan (JSON report)
         run: |
           echo "Running pa11y scan for JSON report..."
           pa11y $TARGET_URL --reporter json --config pa11y.json > accessibility-reports/pa11y-report.json || true
+          echo "DEBUG: pa11y JSON scan completed, checking content:"
+          echo "File size: $(wc -c < accessibility-reports/pa11y-report.json 2>/dev/null || echo '0') bytes"
+          echo "First few lines of JSON:"
+          head -5 accessibility-reports/pa11y-report.json 2>/dev/null || echo "JSON report not found or empty"
           
       - name: Run pa11y accessibility scan (CSV report)
         run: |
           echo "Running pa11y scan for CSV report..."
           pa11y $TARGET_URL --reporter csv --config pa11y.json > accessibility-reports/pa11y-report.csv || true
+          echo "DEBUG: pa11y CSV scan completed, checking content:"
+          echo "File size: $(wc -c < accessibility-reports/pa11y-report.csv 2>/dev/null || echo '0') bytes"
+          echo "CSV content preview:"
+          head -3 accessibility-reports/pa11y-report.csv 2>/dev/null || echo "CSV report not found or empty"
           
       - name: Run axe-core accessibility scan
         run: |
