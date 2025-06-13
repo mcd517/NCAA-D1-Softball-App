@@ -514,6 +514,43 @@ runs:
       run: |
         ISSUE_SUMMARY_PATH="${{ inputs.report-dir }}/issue-summary.json"
         
+        # Build priority actions array properly without trailing commas
+        PRIORITY_ACTIONS=""
+        
+        if [ "${{ inputs.axe-violations }}" -gt "0" ]; then
+          PRIORITY_ACTIONS="\"Fix ${{ inputs.axe-violations }} critical WCAG violations\""
+        fi
+        
+        if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ]; then
+          if [ -n "$PRIORITY_ACTIONS" ]; then
+            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Improve Lighthouse accessibility score to 90+\""
+          else
+            PRIORITY_ACTIONS="\"Improve Lighthouse accessibility score to 90+\""
+          fi
+        fi
+        
+        if [ "${{ inputs.pa11y-issues }}" -gt "0" ]; then
+          if [ -n "$PRIORITY_ACTIONS" ]; then
+            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\""
+          else
+            PRIORITY_ACTIONS="\"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\""
+          fi
+        fi
+        
+        if [ "${{ inputs.playwright-violations }}" -gt "0" ]; then
+          if [ -n "$PRIORITY_ACTIONS" ]; then
+            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\""
+          else
+            PRIORITY_ACTIONS="\"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\""
+          fi
+        fi
+        
+        if [ -n "$PRIORITY_ACTIONS" ]; then
+          PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Re-run accessibility scan to verify fixes\""
+        else
+          PRIORITY_ACTIONS="\"Re-run accessibility scan to verify fixes\""
+        fi
+        
         cat > "$ISSUE_SUMMARY_PATH" << EOF
         {
           "total_issues": $TOTAL_ISSUES,
@@ -535,11 +572,7 @@ runs:
           },
           "status": "$OVERALL_STATUS",
           "priority_actions": [
-            $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "\"Fix ${{ inputs.axe-violations }} critical WCAG violations\",")
-            $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ] && echo "\"Improve Lighthouse accessibility score to 90+\",")
-            $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "\"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\",")
-            $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "\"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\",")
-            "\"Re-run accessibility scan to verify fixes\""
+            $PRIORITY_ACTIONS
           ]
         }
         EOF
