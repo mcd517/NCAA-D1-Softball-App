@@ -67,12 +67,11 @@ runs:
         # Run axe scan with error handling - match comprehensive workflow approach
         echo "Running axe-core scan with standards: ${{ inputs.standards }}"
         
-        # Use the same approach as comprehensive workflow
+        # Use the same approach as comprehensive workflow - NO TAGS FILTER
         if npx axe ${{ inputs.target-url }} \
           --save "$REPORT_PATH" \
           --timeout ${{ inputs.timeout }} \
-          --chrome-options="${CHROME_FLAGS}" \
-          --tags ${{ inputs.standards }}; then
+          --chrome-options="${CHROME_FLAGS}"; then
           echo "✅ Axe scan completed successfully"
           SCAN_STATUS="passed"
         else
