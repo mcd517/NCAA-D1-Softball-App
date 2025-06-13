@@ -65,21 +65,13 @@ Each run provides an immediate summary showing:
 - Overall compliance status
 
 ### Multi-Layer Analysis
-The solution now provides four complementary perspectives:
+The solution provides three complementary perspectives:
 
 1. **axe-core**: Precise WCAG violation detection
 2. **pa11y**: HTML_CodeSniffer rule validation  
 3. **Lighthouse**: User experience impact scoring (with hidden audit extraction)
-4. **AI Expert Analysis**: GPT-4 powered code review for accessibility patterns and recommendations
 
-### AI-Powered Code Analysis
-Our workflow includes an AI accessibility expert that:
-- Analyzes your React components for WCAG 2.1 AA compliance
-- Provides specific, actionable recommendations with code examples
-- Identifies accessibility patterns that automated tools might miss
-- Offers contextual suggestions based on your application structure
-
-**Note**: AI analysis requires OpenAI API key configuration (`OPENAI_API_KEY` secret). Without it, the workflow falls back to pattern-based analysis.
+This comprehensive approach ensures broader coverage than any single tool could provide.
 
 ### Issue Prioritization
 Focus on issues in this order:

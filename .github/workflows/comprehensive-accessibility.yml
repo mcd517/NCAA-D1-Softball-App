@@ -103,147 +103,6 @@ jobs:
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
             
-      - name: Generate AI-powered accessibility analysis
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          echo "# AI-Powered Accessibility Code Analysis" > accessibility-reports/copilot-analysis.md
-          echo "" >> accessibility-reports/copilot-analysis.md
-          echo "**Analysis Date:** $(date)" >> accessibility-reports/copilot-analysis.md
-          echo "**Target Application:** $TARGET_URL" >> accessibility-reports/copilot-analysis.md
-          echo "**AI Model:** GPT-4 Accessibility Expert" >> accessibility-reports/copilot-analysis.md
-          echo "" >> accessibility-reports/copilot-analysis.md
-          
-          # Create a script to analyze code with AI
-          cat > analyze_accessibility.cjs << 'EOF'
-          const fs = require('fs');
-          const https = require('https');
-          
-          async function analyzeAccessibility() {
-            if (!process.env.OPENAI_API_KEY) {
-              console.log("⚠️ OpenAI API key not configured - using pattern-based analysis");
-              return false;
-            }
-            
-            try {
-              // Read main application files
-              const appContent = fs.readFileSync('src/App.jsx', 'utf8');
-              const components = ['StatLeaders', 'TeamRankings', 'TournamentBracket', 'Scoreboard'].map(name => {
-                try {
-                  return {
-                    name,
-                    content: fs.readFileSync(`src/components/${name}.jsx`, 'utf8')
-                  };
-                } catch {
-                  return null;
-                }
-              }).filter(Boolean);
-              
-              const prompt = `As an accessibility expert, analyze this React application for WCAG 2.1 AA compliance issues and provide specific recommendations:
-
-          Main App Component:
-          \`\`\`jsx
-          ${appContent}
-          \`\`\`
-
-          ${components.map(c => `${c.name} Component:
-          \`\`\`jsx
-          ${c.content}
-          \`\`\``).join('\n\n')}
-
-          Focus on:
-          1. Semantic HTML structure and landmarks
-          2. Heading hierarchy and navigation
-          3. ARIA attributes and roles
-          4. Keyboard navigation support
-          5. Screen reader compatibility
-          6. Color contrast and visual accessibility
-          7. Interactive element accessibility
-
-          Provide specific, actionable recommendations with code examples where helpful.`;
-
-              const data = JSON.stringify({
-                model: "gpt-4",
-                messages: [{
-                  role: "system",
-                  content: "You are an expert web accessibility consultant specializing in WCAG 2.1 AA compliance. Provide detailed, technical analysis with specific code improvements."
-                }, {
-                  role: "user",
-                  content: prompt
-                }],
-                max_tokens: 2000,
-                temperature: 0.3
-              });
-
-              const options = {
-                hostname: 'api.openai.com',
-                port: 443,
-                path: '/v1/chat/completions',
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                  'Content-Length': data.length
-                }
-              };
-
-              return new Promise((resolve, reject) => {
-                const req = https.request(options, (res) => {
-                  let responseData = '';
-                  res.on('data', (chunk) => {
-                    responseData += chunk;
-                  });
-                  res.on('end', () => {
-                    try {
-                      const response = JSON.parse(responseData);
-                      if (response.choices && response.choices[0]) {
-                        fs.writeFileSync('ai-analysis.md', response.choices[0].message.content);
-                        console.log("✅ AI accessibility analysis completed");
-                        resolve(true);
-                      } else {
-                        console.log("⚠️ Unexpected API response format");
-                        resolve(false);
-                      }
-                    } catch (error) {
-                      console.log("⚠️ Error parsing API response:", error.message);
-                      resolve(false);
-                    }
-                  });
-                });
-
-                req.on('error', (error) => {
-                  console.log("⚠️ API request failed:", error.message);
-                  resolve(false);
-                });
-
-                req.write(data);
-                req.end();
-              });
-            } catch (error) {
-              console.log("⚠️ Error in AI analysis:", error.message);
-              return false;
-            }
-          }
-          
-          analyzeAccessibility();
-          EOF
-          
-          # Run AI analysis
-          node analyze_accessibility.cjs
-          
-          # Append AI analysis if successful
-          if [ -f "ai-analysis.md" ]; then
-            echo "## 🤖 AI Accessibility Expert Analysis" >> accessibility-reports/copilot-analysis.md
-            echo "" >> accessibility-reports/copilot-analysis.md
-            cat ai-analysis.md >> accessibility-reports/copilot-analysis.md
-            echo "" >> accessibility-reports/copilot-analysis.md
-          else
-            echo "## 🤖 Pattern-Based Analysis (AI analysis unavailable)" >> accessibility-reports/copilot-analysis.md
-            echo "" >> accessibility-reports/copilot-analysis.md
-            echo "AI analysis requires OpenAI API key configuration. Using pattern-based analysis instead." >> accessibility-reports/copilot-analysis.md
-            echo "" >> accessibility-reports/copilot-analysis.md
-          fi
-          
       - name: Generate comprehensive summary report
         run: |
           echo "# Web Accessibility Evaluation Report" > accessibility-reports/README.md
@@ -391,31 +250,27 @@ jobs:
             # Check for hidden audits that might have failed
             echo "DEBUG: Checking Lighthouse hidden audits..."
             LIGHTHOUSE_HIDDEN_FAILURES=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | .key' 2>/dev/null | wc -l || echo "0")
+            
+            # Also check for notApplicable audits in hidden group that should have failed
+            LIGHTHOUSE_HIDDEN_NOT_APPLICABLE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.scoreDisplayMode == "notApplicable" and (.key | test("landmark|heading|bypass"))) | .key' 2>/dev/null | wc -l || echo "0")
+            
             echo "DEBUG: Lighthouse hidden failures: $LIGHTHOUSE_HIDDEN_FAILURES"
+            echo "DEBUG: Lighthouse structural audits marked notApplicable: $LIGHTHOUSE_HIDDEN_NOT_APPLICABLE"
             
-            # List specific hidden failures
-            if [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ]; then
-              echo "DEBUG: Lighthouse hidden audit failures:"
+            # List specific hidden failures and structural issues
+            if [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ] || [ "$LIGHTHOUSE_HIDDEN_NOT_APPLICABLE" -gt "0" ]; then
+              echo "DEBUG: Lighthouse structural accessibility issues:"
               cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | "\(.key): \(.value.title)"' 2>/dev/null | head -5 || true
+              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.scoreDisplayMode == "notApplicable" and (.key | test("landmark|heading|bypass"))) | "\(.key): \(.value.title) (marked not applicable)"' 2>/dev/null | head -5 || true
             fi
             
-            # Debug Lighthouse accessibility audits
-            echo "DEBUG: Lighthouse accessibility details:"
-            FAILED_AUDITS=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | .key' 2>/dev/null | wc -l || echo "0")
-            echo "DEBUG: Lighthouse failed audits count: $FAILED_AUDITS"
-            
-            # List some specific failed audits for debugging
-            if [ "$FAILED_AUDITS" -gt "0" ]; then
-              echo "DEBUG: Some failed Lighthouse audits:"
-              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | "\(.key): \(.value.title)"' 2>/dev/null | head -5 || true
-            fi
-            
+            TOTAL_LIGHTHOUSE_ISSUES=$((LIGHTHOUSE_HIDDEN_FAILURES + LIGHTHOUSE_HIDDEN_NOT_APPLICABLE))
             echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE%" >> scan-summary.txt
-            echo "💡 **Lighthouse Hidden Issues:** $LIGHTHOUSE_HIDDEN_FAILURES" >> scan-summary.txt
+            echo "💡 **Lighthouse Hidden Issues:** $TOTAL_LIGHTHOUSE_ISSUES" >> scan-summary.txt
             
             # Add Lighthouse interpretation
-            if [ "$LIGHTHOUSE_SCORE" = "100" ] && [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ]; then
-              echo "⚠️ **Note:** Lighthouse's 100% score excludes $LIGHTHOUSE_HIDDEN_FAILURES structural violations that don't affect its weighted scoring algorithm" >> scan-summary.txt
+            if [ "$LIGHTHOUSE_SCORE" = "100" ] && [ "$TOTAL_LIGHTHOUSE_ISSUES" -gt "0" ]; then
+              echo "⚠️ **Note:** Lighthouse's 100% score excludes $TOTAL_LIGHTHOUSE_ISSUES structural violations that don't affect its weighted scoring algorithm" >> scan-summary.txt
             fi
           else
             echo "💡 **Lighthouse Score:** Report generation failed" >> scan-summary.txt
