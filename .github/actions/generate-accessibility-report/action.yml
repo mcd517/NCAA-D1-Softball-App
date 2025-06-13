@@ -132,40 +132,126 @@ runs:
         echo "OVERALL_STATUS=$OVERALL_STATUS" >> $GITHUB_ENV
         echo "AVERAGE_LIGHTHOUSE_SCORE=$AVERAGE_LIGHTHOUSE_SCORE" >> $GITHUB_ENV
 
-    - name: Generate baseline metadata
+    - name: Generate enhanced baseline metadata  
       shell: bash
       run: |
         METADATA_PATH="${{ inputs.report-dir }}/baseline-metadata.json"
         
+        # Calculate business impact metrics
+        CRITICAL_VIOLATIONS=${{ inputs.axe-violations }}
+        HIGH_PRIORITY_ISSUES=$((PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
+        
+        # Estimate affected user percentage based on issue types
+        ESTIMATED_USER_IMPACT=0
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=25  # Critical violations affect ~25% of users with disabilities
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=15  # High priority issues affect ~15% of users
+        elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=5   # Minor issues affect ~5% of users
+        fi
+        
+        # Calculate compliance risk level
+        COMPLIANCE_RISK="LOW"
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          COMPLIANCE_RISK="HIGH"
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+          COMPLIANCE_RISK="MEDIUM"
+        fi
+        
+        # Calculate estimated fix time more accurately
+        ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + (TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES) / 2))
+        if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_FIX_HOURS=1
+        fi
+        
+        # Determine scan quality score based on tool completion
+        TOOLS_COMPLETED=0
+        TOTAL_TOOLS=4
+        
+        if [ "${{ inputs.axe-violations }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.pa11y-issues }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.lighthouse-desktop-score }}" != "0" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.playwright-violations }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        
+        SCAN_QUALITY_SCORE=$((TOOLS_COMPLETED * 100 / TOTAL_TOOLS))
+        
         cat > "$METADATA_PATH" << EOF
         {
-          "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-          "workflow_run_id": "${{ inputs.workflow-run-id }}",
-          "workflow_run_number": "${{ inputs.workflow-run-number }}",
-          "target_url": "${{ inputs.target-url }}",
-          "standards": "${{ inputs.standards }}",
-          "tools_used": "${{ inputs.scan-tools }}",
-          "results": {
+          "scan_metadata": {
+            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ inputs.workflow-run-id }}",
+            "workflow_run_number": "${{ inputs.workflow-run-number }}",
+            "target_url": "${{ inputs.target-url }}",
+            "standards": "${{ inputs.standards }}",
+            "tools_used": "${{ inputs.scan-tools }}",
+            "scan_quality_score": $SCAN_QUALITY_SCORE,
+            "tools_completed": $TOOLS_COMPLETED,
+            "total_tools": $TOTAL_TOOLS
+          },
+          "technical_results": {
             "total_issues": $TOTAL_ISSUES,
             "axe_violations": ${{ inputs.axe-violations }},
             "pa11y_issues": ${{ inputs.pa11y-issues }},
             "playwright_violations": ${{ inputs.playwright-violations }},
             "lighthouse_desktop_score": ${{ inputs.lighthouse-desktop-score }},
             "lighthouse_mobile_score": ${{ inputs.lighthouse-mobile-score }},
-            "average_lighthouse_score": $AVERAGE_LIGHTHOUSE_SCORE
+            "average_lighthouse_score": $AVERAGE_LIGHTHOUSE_SCORE,
+            "status": "$OVERALL_STATUS"
           },
-          "status": "$OVERALL_STATUS"
+          "business_impact": {
+            "compliance_risk_level": "$COMPLIANCE_RISK",
+            "estimated_user_impact_percentage": $ESTIMATED_USER_IMPACT,
+            "estimated_fix_hours": $ESTIMATED_FIX_HOURS,
+            "priority_breakdown": {
+              "critical_violations": $CRITICAL_VIOLATIONS,
+              "high_priority_issues": $HIGH_PRIORITY_ISSUES,
+              "medium_priority_issues": $((TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES))
+            }
+          },
+          "executive_summary": {
+            "scan_passed": $([ "$OVERALL_STATUS" == "passed" ] && echo "true" || echo "false"),
+            "immediate_action_required": $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "true" || echo "false"),
+            "business_ready": $([ "$TOTAL_ISSUES" -eq "0" ] && echo "true" || echo "false"),
+            "audit_confidence": $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "high" || echo "medium")
+          }
         }
         EOF
         
         echo "baseline-metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
-        echo "✅ Generated baseline metadata: $METADATA_PATH"
+        echo "✅ Generated enhanced baseline metadata: $METADATA_PATH"
 
     - name: Generate HTML dashboard
       if: inputs.generate-dashboard == 'true'
       shell: bash
       run: |
         DASHBOARD_PATH="${{ inputs.report-dir }}/accessibility-dashboard.html"
+        
+        # Calculate enhanced metrics for dashboard
+        CRITICAL_VIOLATIONS=${{ inputs.axe-violations }}
+        HIGH_PRIORITY_ISSUES=$((PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
+        
+        # Estimate business metrics
+        ESTIMATED_USER_IMPACT=0
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=25
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=15
+        elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=5
+        fi
+        
+        COMPLIANCE_RISK="LOW"
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          COMPLIANCE_RISK="HIGH"
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+          COMPLIANCE_RISK="MEDIUM"
+        fi
+        
+        ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + (TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES) / 2))
+        if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_FIX_HOURS=1
+        fi
         
         # Create comprehensive HTML dashboard
         cat > "$DASHBOARD_PATH" << 'EOF'
@@ -174,7 +260,7 @@ runs:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Accessibility Scan Dashboard</title>
+            <title>Enterprise Accessibility Scan Dashboard</title>
             <style>
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -203,6 +289,13 @@ runs:
                 }
                 .status-passed { color: #22c55e; }
                 .status-failed { color: #ef4444; }
+                .executive-summary {
+                    background: #f8f9fa;
+                    border-left: 4px solid #007bff;
+                    padding: 20px;
+                    margin: 20px;
+                    border-radius: 0 8px 8px 0;
+                }
                 .metrics {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -228,6 +321,16 @@ runs:
                 .metric-value.good { color: #22c55e; }
                 .metric-value.warning { color: #f59e0b; }
                 .metric-value.error { color: #ef4444; }
+                .business-impact {
+                    background: #fef9e7;
+                    border: 1px solid #f59e0b;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px;
+                }
+                .risk-high { color: #dc2626; font-weight: bold; }
+                .risk-medium { color: #f59e0b; font-weight: bold; }
+                .risk-low { color: #16a34a; font-weight: bold; }
                 .details {
                     padding: 30px;
                     border-top: 1px solid #e2e8f0;
@@ -255,6 +358,13 @@ runs:
                     color: #92400e;
                     margin-top: 0;
                 }
+                .developer-section {
+                    background: #f0f9ff;
+                    border: 1px solid #0ea5e9;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin: 20px;
+                }
                 .footer {
                     background: #374151;
                     color: white;
@@ -262,76 +372,248 @@ runs:
                     text-align: center;
                     font-size: 0.9em;
                 }
+                .scan-reliability {
+                    font-size: 0.9em;
+                    color: #6b7280;
+                    margin-top: 10px;
+                }
+                .tabs {
+                    display: flex;
+                    border-bottom: 1px solid #e2e8f0;
+                    margin: 0 20px;
+                }
+                .tab-button {
+                    background: none;
+                    border: none;
+                    padding: 15px 25px;
+                    cursor: pointer;
+                    border-bottom: 2px solid transparent;
+                    font-weight: 500;
+                }
+                .tab-button.active {
+                    border-bottom-color: #007bff;
+                    color: #007bff;
+                }
+                .tab-content {
+                    display: none;
+                    padding: 20px;
+                }
+                .tab-content.active {
+                    display: block;
+                }
             </style>
+            <script>
+                function showTab(tabName) {
+                    // Hide all tab contents
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    // Remove active class from all buttons
+                    document.querySelectorAll('.tab-button').forEach(button => {
+                        button.classList.remove('active');
+                    });
+                    // Show selected tab and mark button as active
+                    document.getElementById(tabName).classList.add('active');
+                    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+                }
+                // Set default tab on load
+                window.onload = function() {
+                    showTab('executive');
+                }
+            </script>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🔍 Accessibility Scan Dashboard</h1>
+                    <h1>🔍 Enterprise Accessibility Scan Dashboard</h1>
                     <p><strong>Target:</strong> ${{ inputs.target-url }}</p>
                     <p><strong>Standards:</strong> ${{ inputs.standards }}</p>
                     <p><strong>Scan Date:</strong> $(date)</p>
                     <h2 class="status-$OVERALL_STATUS">Status: $(echo "$OVERALL_STATUS" | tr '[:lower:]' '[:upper:]')</h2>
-                </div>
-                
-                <div class="metrics">
-                    <div class="metric-card">
-                        <h3>🚨 Total Issues</h3>
-                        <div class="metric-value $([ "$TOTAL_ISSUES" -eq "0" ] && echo "good" || echo "error")">$TOTAL_ISSUES</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>⚡ Axe Violations</h3>
-                        <div class="metric-value $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.axe-violations }}</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>📝 Pa11y Issues</h3>
-                        <div class="metric-value $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.pa11y-issues }}</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>🎭 Playwright Violations</h3>
-                        <div class="metric-value $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.playwright-violations }}</div>
-                    </div>
-                    <div class="metric-card">
-                        <h3>💡 Lighthouse Score</h3>
-                        <div class="metric-value $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "good" || ([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 70" | bc -l)" -eq "1" ] && echo "warning" || echo "error"))">${AVERAGE_LIGHTHOUSE_SCORE}%</div>
-                        <small>Desktop: ${{ inputs.lighthouse-desktop-score }}% | Mobile: ${{ inputs.lighthouse-mobile-score }}%</small>
+                    <div class="scan-reliability">
+                        Scan Reliability: $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "High (${SCAN_QUALITY_SCORE}%)" || echo "Medium (${SCAN_QUALITY_SCORE}%)")
                     </div>
                 </div>
                 
-                <div class="details">
+                <div class="tabs">
+                    <button class="tab-button active" onclick="showTab('executive')">👔 Executive Summary</button>
+                    <button class="tab-button" onclick="showTab('developer')">👨‍💻 Developer Details</button>
+                    <button class="tab-button" onclick="showTab('tools')">🔧 Tool Results</button>
+                </div>
+                
+                <!-- Executive Summary Tab -->
+                <div id="executive" class="tab-content active">
+                    <div class="executive-summary">
+                        <h2>📊 Business Impact Assessment</h2>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div>
+                                <strong>Compliance Risk:</strong> 
+                                <span class="risk-$(echo "$COMPLIANCE_RISK" | tr '[:upper:]' '[:lower:]')">$COMPLIANCE_RISK</span>
+                            </div>
+                            <div>
+                                <strong>Estimated User Impact:</strong> $ESTIMATED_USER_IMPACT% of users with disabilities
+                            </div>
+                            <div>
+                                <strong>Estimated Fix Time:</strong> $ESTIMATED_FIX_HOURS hours
+                            </div>
+                            <div>
+                                <strong>Business Ready:</strong> $([ "$TOTAL_ISSUES" -eq "0" ] && echo "✅ Yes" || echo "❌ No")
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics">
+                        <div class="metric-card">
+                            <h3>🚨 Total Issues</h3>
+                            <div class="metric-value $([ "$TOTAL_ISSUES" -eq "0" ] && echo "good" || echo "error")">$TOTAL_ISSUES</div>
+                            <div>$([ "$TOTAL_ISSUES" -eq "0" ] && echo "Ready for Production" || echo "Action Required")</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>⚡ Critical Violations</h3>
+                            <div class="metric-value $([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "good" || echo "error")">$CRITICAL_VIOLATIONS</div>
+                            <div>$([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "WCAG Compliant" || echo "Blocks Users")</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>💡 Accessibility Score</h3>
+                            <div class="metric-value $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "good" || ([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 70" | bc -l)" -eq "1" ] && echo "warning" || echo "error"))">${AVERAGE_LIGHTHOUSE_SCORE}%</div>
+                            <div>Industry Standard: 90%+</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>⏱️ Fix Investment</h3>
+                            <div class="metric-value $([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "good" || ([ "$ESTIMATED_FIX_HOURS" -le "8" ] && echo "warning" || echo "error"))">$ESTIMATED_FIX_HOURS hrs</div>
+                            <div>Development Time</div>
+                        </div>
+                    </div>
+                    
+                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'EXEC_RECOMMENDATIONS'
+                    <div class="business-impact">
+                        <h3>📈 Business Recommendations</h3>
+                        <ul>
+                            <li><strong>Legal Compliance:</strong> $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "HIGH RISK - ADA/Section 508 violations present" || echo "COMPLIANT - No critical violations")</li>
+                            <li><strong>User Access:</strong> $ESTIMATED_USER_IMPACT% of users with disabilities may face barriers</li>
+                            <li><strong>Market Opportunity:</strong> $([ "$TOTAL_ISSUES" -eq "0" ] && echo "15% larger addressable market with full accessibility" || echo "Excluding 15% of potential users")</li>
+                            <li><strong>Implementation Cost:</strong> $ESTIMATED_FIX_HOURS hours @ developer rates = estimated cost</li>
+                            <li><strong>ROI Timeline:</strong> $([ "$ESTIMATED_FIX_HOURS" -le "8" ] && echo "Quick wins available - implement within 1 sprint" || echo "Major investment - plan 2-3 sprints")</li>
+                        </ul>
+                    </div>
+                    EXEC_RECOMMENDATIONS
+                    )
+                </div>
+                
+                <!-- Developer Details Tab -->
+                <div id="developer" class="tab-content">
+                    <div class="developer-section">
+                        <h2>🔧 Technical Implementation Guide</h2>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div>
+                                <strong>Primary Focus:</strong> $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "Fix WCAG violations first" || echo "Enhance user experience")
+                            </div>
+                            <div>
+                                <strong>Testing Strategy:</strong> $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "Comprehensive scan completed" || echo "Partial scan - rerun recommended")
+                            </div>
+                            <div>
+                                <strong>Validation:</strong> Re-run workflow after fixes
+                            </div>
+                        </div>
+                        
+                        <h3>📂 Files Requiring Changes</h3>
+                        <ul>
+                            <li><code>src/App.jsx</code> - Main application structure, landmarks</li>
+                            <li><code>src/components/*.jsx</code> - Component-level accessibility</li>
+                            <li><code>src/**/*.css</code> - Focus indicators, color contrast</li>
+                            <li><code>public/index.html</code> - Document metadata, lang attribute</li>
+                        </ul>
+                        
+                        <h3>🔍 Debugging Information</h3>
+                        <ul>
+                            <li><strong>Axe-core:</strong> $([ "${{ inputs.axe-violations }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
+                            <li><strong>Pa11y:</strong> $([ "${{ inputs.pa11y-issues }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
+                            <li><strong>Lighthouse:</strong> $([ "${{ inputs.lighthouse-desktop-score }}" != "0" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
+                            <li><strong>Playwright:</strong> $([ "${{ inputs.playwright-violations }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
+                        </ul>
+                        
+                        $([ "$SCAN_QUALITY_SCORE" -lt "75" ] && cat << 'DEV_WARNING'
+                        <div style="background: #fef2f2; border: 1px solid #ef4444; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                            <strong>⚠️ Scan Quality Notice:</strong> Some tools failed to complete. Consider re-running the workflow for comprehensive results.
+                        </div>
+                        DEV_WARNING
+                        )
+                    </div>
+                    
+                    <div class="metrics">
+                        <div class="metric-card">
+                            <h3>⚡ Axe Violations</h3>
+                            <div class="metric-value $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.axe-violations }}</div>
+                            <small>WCAG 2.1 AA Compliance</small>
+                        </div>
+                        <div class="metric-card">
+                            <h3>📝 Pa11y Issues</h3>
+                            <div class="metric-value $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.pa11y-issues }}</div>
+                            <small>Content & Markup Analysis</small>
+                        </div>
+                        <div class="metric-card">
+                            <h3>💡 Lighthouse Desktop</h3>
+                            <div class="metric-value $([ "$(echo "${{ inputs.lighthouse-desktop-score }} >= 90" | bc -l)" -eq "1" ] && echo "good" || echo "warning")">${{ inputs.lighthouse-desktop-score }}%</div>
+                            <small>Desktop Performance</small>
+                        </div>
+                        <div class="metric-card">
+                            <h3>📱 Lighthouse Mobile</h3>
+                            <div class="metric-value $([ "$(echo "${{ inputs.lighthouse-mobile-score }} >= 90" | bc -l)" -eq "1" ] && echo "good" || echo "warning")">${{ inputs.lighthouse-mobile-score }}%</div>
+                            <small>Mobile Performance</small>
+                        </div>
+                        <div class="metric-card">
+                            <h3>🎭 Playwright Violations</h3>
+                            <div class="metric-value $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.playwright-violations }}</div>
+                            <small>End-to-End Testing</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tool Results Tab -->
+                <div id="tools" class="tab-content">
+                <!-- Tool Results Tab -->
+                <div id="tools" class="tab-content">
                     <h2>📊 Detailed Results by Tool</h2>
                     
                     <div class="tool-section">
-                        <h3>🔧 Axe-core (WCAG Compliance)</h3>
+                        <h3>🔧 Axe-core (WCAG Compliance) - $([ "${{ inputs.axe-violations }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
                         <p><strong>Violations Found:</strong> ${{ inputs.axe-violations }}</p>
-                        <p>Axe-core tests for WCAG 2.1 compliance and finds specific accessibility violations that need to be fixed.</p>
+                        <p><strong>Purpose:</strong> Tests for WCAG 2.1 compliance and finds specific accessibility violations that need to be fixed.</p>
+                        <p><strong>File Location:</strong> <code>axe-report.json</code></p>
                         $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review axe-report.json for specific violations and fix them.</p>" || echo "<p>✅ <strong>Passed:</strong> No WCAG violations detected.</p>")
+                        $([ "${{ inputs.axe-violations }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Axe-core scan did not complete successfully. Check workflow logs.</p>")
                     </div>
                     
                     <div class="tool-section">
-                        <h3>📋 Pa11y (Content Analysis)</h3>
+                        <h3>📋 Pa11y (Content Analysis) - $([ "${{ inputs.pa11y-issues }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
                         <p><strong>Issues Found:</strong> ${{ inputs.pa11y-issues }}</p>
-                        <p>Pa11y analyzes page content for accessibility issues including missing alt text, improper headings, and color contrast problems.</p>
+                        <p><strong>Purpose:</strong> Analyzes page content for accessibility issues including missing alt text, improper headings, and color contrast problems.</p>
+                        <p><strong>File Location:</strong> <code>pa11y-report.html</code>, <code>pa11y-report.json</code></p>
                         $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review pa11y-report.html for detailed issue locations.</p>" || echo "<p>✅ <strong>Passed:</strong> No content issues detected.</p>")
+                        $([ "${{ inputs.pa11y-issues }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Pa11y scan did not complete successfully. Check workflow logs.</p>")
                     </div>
                     
                     <div class="tool-section">
-                        <h3>💡 Lighthouse (Performance & Accessibility)</h3>
+                        <h3>💡 Lighthouse (Performance & Accessibility) - $([ "${{ inputs.lighthouse-desktop-score }}" != "0" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
                         <p><strong>Desktop Score:</strong> ${{ inputs.lighthouse-desktop-score }}% | <strong>Mobile Score:</strong> ${{ inputs.lighthouse-mobile-score }}%</p>
-                        <p>Lighthouse provides overall accessibility scoring and identifies opportunities for improvement.</p>
+                        <p><strong>Purpose:</strong> Provides overall accessibility scoring and identifies opportunities for improvement.</p>
+                        <p><strong>File Location:</strong> <code>lighthouse-accessibility-desktop.json</code>, <code>lighthouse-accessibility-mobile.json</code></p>
                         $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "<p>✅ <strong>Excellent:</strong> High accessibility score achieved.</p>" || echo "<p>⚠️ <strong>Needs Improvement:</strong> Review Lighthouse reports for optimization opportunities.</p>")
+                        $([ "${{ inputs.lighthouse-desktop-score }}" == "0" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Lighthouse scan did not complete successfully. Check workflow logs.</p>")
                     </div>
                     
                     <div class="tool-section">
-                        <h3>🎭 Playwright (End-to-End Testing)</h3>
+                        <h3>🎭 Playwright (End-to-End Testing) - $([ "${{ inputs.playwright-violations }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
                         <p><strong>Violations Found:</strong> ${{ inputs.playwright-violations }}</p>
-                        <p>Playwright runs comprehensive end-to-end accessibility tests including keyboard navigation and screen reader compatibility.</p>
+                        <p><strong>Purpose:</strong> Runs comprehensive end-to-end accessibility tests including keyboard navigation and screen reader compatibility.</p>
+                        <p><strong>File Location:</strong> <code>playwright-results.json</code>, <code>playwright-report/</code></p>
                         $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review Playwright test results for interaction and navigation issues.</p>" || echo "<p>✅ <strong>Passed:</strong> All end-to-end accessibility tests passed.</p>")
+                        $([ "${{ inputs.playwright-violations }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Playwright scan did not complete successfully. Check workflow logs.</p>")
                     </div>
                     
-                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'RECOMMENDATIONS'
+                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'TOOL_RECOMMENDATIONS'
                     <div class="recommendations">
-                        <h3>🎯 Recommended Actions</h3>
+                        <h3>🎯 Implementation Priority (Tool-Specific)</h3>
                         <ol>
                             <li><strong>Fix Critical Issues First:</strong> Start with axe-core violations as they represent WCAG compliance failures.</li>
                             <li><strong>Review Content Quality:</strong> Address pa11y issues to improve overall accessibility experience.</li>
@@ -341,12 +623,13 @@ runs:
                         </ol>
                         <p><strong>Priority Order:</strong> Axe violations → Lighthouse structural issues → Pa11y content issues → Playwright interaction issues</p>
                     </div>
-        RECOMMENDATIONS
-        )
+                    TOOL_RECOMMENDATIONS
+                    )
                 </div>
                 
                 <div class="footer">
                     <p>Generated on $(date) | Workflow Run: ${{ inputs.workflow-run-number }} | Tools: ${{ inputs.scan-tools }}</p>
+                    <p>Scan Quality: $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "High" || echo "Medium") (${SCAN_QUALITY_SCORE}% of tools completed successfully)</p>
                     <p>This dashboard aggregates results from multiple accessibility testing tools for comprehensive coverage.</p>
                 </div>
             </div>
@@ -357,70 +640,140 @@ runs:
         echo "dashboard-path=$DASHBOARD_PATH" >> $GITHUB_OUTPUT
         echo "✅ Generated HTML dashboard: $DASHBOARD_PATH"
 
-    - name: Generate markdown summary
+    - name: Generate enhanced markdown summary
       if: inputs.generate-summary == 'true'
       shell: bash
       run: |
         SUMMARY_PATH="${{ inputs.report-dir }}/accessibility-summary.md"
         
-        # Calculate values first
+        # Calculate enhanced values
         AXE_VIOLATIONS=${{ inputs.axe-violations }}
         PA11Y_ISSUES=${{ inputs.pa11y-issues }}
         PLAYWRIGHT_VIOLATIONS=${{ inputs.playwright-violations }}
         LIGHTHOUSE_DESKTOP=${{ inputs.lighthouse-desktop-score }}
         LIGHTHOUSE_MOBILE=${{ inputs.lighthouse-mobile-score }}
         
-        # Status indicators
+        # Calculate business metrics
+        CRITICAL_VIOLATIONS=$AXE_VIOLATIONS
+        HIGH_PRIORITY_ISSUES=$((PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
+        
+        ESTIMATED_USER_IMPACT=0
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=25
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=15
+        elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=5
+        fi
+        
+        COMPLIANCE_RISK="LOW"
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          COMPLIANCE_RISK="HIGH"
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+          COMPLIANCE_RISK="MEDIUM"
+        fi
+        
+        ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + (TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES) / 2))
+        if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_FIX_HOURS=1
+        fi
+        
+        # Tool completion status
+        TOOLS_COMPLETED=0
+        TOTAL_TOOLS=4
+        
+        if [ "$AXE_VIOLATIONS" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "$PA11Y_ISSUES" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "$LIGHTHOUSE_DESKTOP" != "0" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "$PLAYWRIGHT_VIOLATIONS" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        
+        SCAN_QUALITY_SCORE=$((TOOLS_COMPLETED * 100 / TOTAL_TOOLS))
+        
+        # Enhanced status indicators with error handling
         AXE_STATUS="✅ Passed"
-        if [ "$AXE_VIOLATIONS" -gt "0" ]; then
+        if [ "$AXE_VIOLATIONS" == "" ]; then
+          AXE_STATUS="⚠️ Tool Failed"
+        elif [ "$AXE_VIOLATIONS" -gt "0" ]; then
           AXE_STATUS="❌ Failed"
         fi
         
         PA11Y_STATUS="✅ Passed"
-        if [ "$PA11Y_ISSUES" -gt "0" ]; then
+        if [ "$PA11Y_ISSUES" == "" ]; then
+          PA11Y_STATUS="⚠️ Tool Failed"
+        elif [ "$PA11Y_ISSUES" -gt "0" ]; then
           PA11Y_STATUS="❌ Failed"
         fi
         
         PLAYWRIGHT_STATUS="✅ Passed"
-        if [ "$PLAYWRIGHT_VIOLATIONS" -gt "0" ]; then
+        if [ "$PLAYWRIGHT_VIOLATIONS" == "" ]; then
+          PLAYWRIGHT_STATUS="⚠️ Tool Failed"
+        elif [ "$PLAYWRIGHT_VIOLATIONS" -gt "0" ]; then
           PLAYWRIGHT_STATUS="❌ Failed"
         fi
         
         LIGHTHOUSE_DESKTOP_STATUS="✅ Excellent"
-        if [ "$LIGHTHOUSE_DESKTOP" -lt "90" ] && [ "$LIGHTHOUSE_DESKTOP" -ge "70" ]; then
+        if [ "$LIGHTHOUSE_DESKTOP" == "0" ]; then
+          LIGHTHOUSE_DESKTOP_STATUS="⚠️ Tool Failed"
+        elif [ "$LIGHTHOUSE_DESKTOP" -lt "90" ] && [ "$LIGHTHOUSE_DESKTOP" -ge "70" ]; then
           LIGHTHOUSE_DESKTOP_STATUS="⚠️ Good"
         elif [ "$LIGHTHOUSE_DESKTOP" -lt "70" ]; then
           LIGHTHOUSE_DESKTOP_STATUS="❌ Needs Work"
         fi
         
         LIGHTHOUSE_MOBILE_STATUS="✅ Excellent"
-        if [ "$LIGHTHOUSE_MOBILE" -lt "90" ] && [ "$LIGHTHOUSE_MOBILE" -ge "70" ]; then
+        if [ "$LIGHTHOUSE_MOBILE" == "0" ]; then
+          LIGHTHOUSE_MOBILE_STATUS="⚠️ Tool Failed"
+        elif [ "$LIGHTHOUSE_MOBILE" -lt "90" ] && [ "$LIGHTHOUSE_MOBILE" -ge "70" ]; then
           LIGHTHOUSE_MOBILE_STATUS="⚠️ Good"
         elif [ "$LIGHTHOUSE_MOBILE" -lt "70" ]; then
           LIGHTHOUSE_MOBILE_STATUS="❌ Needs Work"
         fi
         
         cat > "$SUMMARY_PATH" << EOF
-        # 🔍 Accessibility Scan Summary
+        # 🔍 Enterprise Accessibility Scan Summary
 
         **Target URL:** ${{ inputs.target-url }}  
         **Standards:** ${{ inputs.standards }}  
         **Scan Date:** $(date)  
-        **Status:** $([ "$OVERALL_STATUS" == "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+        **Status:** $([ "$OVERALL_STATUS" == "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")  
+        **Scan Quality:** $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "✅ High" || echo "⚠️ Medium") ($SCAN_QUALITY_SCORE% tools completed)
 
-        ## 📊 Results Overview
+        ## 📊 Executive Summary
 
-        | Tool | Issues/Score | Status |
-        |------|-------------|--------|
-        | 🔧 Axe-core | $AXE_VIOLATIONS violations | $AXE_STATUS |
-        | 📋 Pa11y | $PA11Y_ISSUES issues | $PA11Y_STATUS |
-        | 💡 Lighthouse Desktop | $LIGHTHOUSE_DESKTOP% | $LIGHTHOUSE_DESKTOP_STATUS |
-        | 💡 Lighthouse Mobile | $LIGHTHOUSE_MOBILE% | $LIGHTHOUSE_MOBILE_STATUS |
-        | 🎭 Playwright | $PLAYWRIGHT_VIOLATIONS violations | $PLAYWRIGHT_STATUS |
+        | Business Metric | Value | Impact |
+        |-----------------|-------|--------|
+        | 🏢 Compliance Risk | **$COMPLIANCE_RISK** | $([ "$COMPLIANCE_RISK" == "HIGH" ] && echo "Legal exposure - immediate action required" || ([ "$COMPLIANCE_RISK" == "MEDIUM" ] && echo "Moderate risk - plan remediation" || echo "Minimal risk - maintain standards")) |
+        | 👥 User Impact | **$ESTIMATED_USER_IMPACT%** | $([ "$ESTIMATED_USER_IMPACT" -gt "20" ] && echo "Significant accessibility barriers" || ([ "$ESTIMATED_USER_IMPACT" -gt "10" ] && echo "Some users may face difficulties" || echo "Minor impact on user experience")) |
+        | ⏱️ Fix Investment | **$ESTIMATED_FIX_HOURS hours** | $([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "Quick wins available" || ([ "$ESTIMATED_FIX_HOURS" -le "8" ] && echo "Moderate development effort" || echo "Significant investment required")) |
+        | 🚀 Business Ready | $([ "$TOTAL_ISSUES" -eq "0" ] && echo "**✅ YES**" || echo "**❌ NO**") | $([ "$TOTAL_ISSUES" -eq "0" ] && echo "Ready for production deployment" || echo "Requires accessibility fixes before launch") |
+
+        ## 🔧 Technical Results Overview
+
+        | Tool | Issues/Score | Status | Notes |
+        |------|-------------|--------|--------|
+        | 🔧 Axe-core | $AXE_VIOLATIONS violations | $AXE_STATUS | $([ "$AXE_STATUS" == "⚠️ Tool Failed" ] && echo "Scan incomplete - check logs" || echo "WCAG 2.1 compliance") |
+        | 📋 Pa11y | $PA11Y_ISSUES issues | $PA11Y_STATUS | $([ "$PA11Y_STATUS" == "⚠️ Tool Failed" ] && echo "Scan incomplete - check logs" || echo "Content analysis") |
+        | 💡 Lighthouse Desktop | $LIGHTHOUSE_DESKTOP% | $LIGHTHOUSE_DESKTOP_STATUS | $([ "$LIGHTHOUSE_DESKTOP_STATUS" == "⚠️ Tool Failed" ] && echo "Scan incomplete - check logs" || echo "Performance score") |
+        | 💡 Lighthouse Mobile | $LIGHTHOUSE_MOBILE% | $LIGHTHOUSE_MOBILE_STATUS | $([ "$LIGHTHOUSE_MOBILE_STATUS" == "⚠️ Tool Failed" ] && echo "Scan incomplete - check logs" || echo "Mobile performance") |
+        | 🎭 Playwright | $PLAYWRIGHT_VIOLATIONS violations | $PLAYWRIGHT_STATUS | $([ "$PLAYWRIGHT_STATUS" == "⚠️ Tool Failed" ] && echo "Scan incomplete - check logs" || echo "End-to-end tests") |
 
         **Total Issues Found:** $TOTAL_ISSUES
 
         EOF
+        
+        # Add scan quality warning if needed
+        if [ "$SCAN_QUALITY_SCORE" -lt "75" ]; then
+          cat >> "$SUMMARY_PATH" << 'EOF'
+        ## ⚠️ Scan Quality Notice
+
+        **WARNING:** Some accessibility testing tools failed to complete successfully. The results may be incomplete.
+
+        - **Scan Completion:** $SCAN_QUALITY_SCORE% of tools completed
+        - **Recommendation:** Re-run the accessibility workflow for comprehensive results
+        - **Impact:** Missing tool data may underrepresent actual issues
+
+        EOF
+        fi
         
         # Add conditional content based on status
         if [ "$TOTAL_ISSUES" -eq "0" ]; then
@@ -443,17 +796,20 @@ runs:
         EOF
         else
           cat >> "$SUMMARY_PATH" << EOF
-        ## 🎯 Action Plan
+        ## 🎯 Implementation Strategy
 
         ### Phase 1: Critical Fixes (High Priority)
         EOF
           
           if [ "$AXE_VIOLATIONS" -gt "0" ]; then
             echo "- **Fix $AXE_VIOLATIONS Axe violations**: These are WCAG compliance failures that block users with disabilities" >> "$SUMMARY_PATH"
+            echo "- **Business Impact**: High legal risk, affects $ESTIMATED_USER_IMPACT% of users" >> "$SUMMARY_PATH"
+            echo "- **Time Investment**: ~$((AXE_VIOLATIONS * 2)) hours" >> "$SUMMARY_PATH"
           fi
           
-          if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 70" | bc -l)" -eq "1" ]; then
+          if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 70" | bc -l)" -eq "1" ] && [ "$AVERAGE_LIGHTHOUSE_SCORE" != "0" ]; then
             echo "- **Improve Lighthouse scores**: Address structural accessibility issues" >> "$SUMMARY_PATH"
+            echo "- **Current Score**: $AVERAGE_LIGHTHOUSE_SCORE% (Target: 90%+)" >> "$SUMMARY_PATH"
           fi
           
           cat >> "$SUMMARY_PATH" << EOF
@@ -463,6 +819,8 @@ runs:
           
           if [ "$PA11Y_ISSUES" -gt "0" ]; then
             echo "- **Resolve $PA11Y_ISSUES Pa11y issues**: Fix content accessibility problems (alt text, headings, etc.)" >> "$SUMMARY_PATH"
+            echo "- **Impact**: Improves experience for screen reader users" >> "$SUMMARY_PATH"
+            echo "- **Time Investment**: ~$((PA11Y_ISSUES / 2)) hours" >> "$SUMMARY_PATH"
           fi
           
           cat >> "$SUMMARY_PATH" << EOF
@@ -472,16 +830,24 @@ runs:
           
           if [ "$PLAYWRIGHT_VIOLATIONS" -gt "0" ]; then
             echo "- **Fix $PLAYWRIGHT_VIOLATIONS Playwright issues**: Ensure keyboard navigation and screen reader compatibility" >> "$SUMMARY_PATH"
+            echo "- **Impact**: Critical for users who cannot use a mouse" >> "$SUMMARY_PATH"
+            echo "- **Time Investment**: ~$PLAYWRIGHT_VIOLATIONS hours" >> "$SUMMARY_PATH"
           fi
           
           cat >> "$SUMMARY_PATH" << EOF
 
         ### Next Steps
-        1. Download the complete scan reports from the workflow artifacts
-        2. Start with the highest priority issues (Axe violations)
-        3. Use the detailed reports to find exact elements that need fixing
-        4. Re-run this scan after making changes to verify improvements
-        5. Aim for 0 violations and 90+ Lighthouse scores
+        1. **Download Reports**: Get detailed scan results from workflow artifacts
+        2. **Prioritize Critical Issues**: Start with Axe violations (highest business impact)
+        3. **Use Detailed Reports**: Find exact elements that need fixing
+        4. **Validate Changes**: Re-run this scan after making changes
+        5. **Target Metrics**: Aim for 0 violations and 90+ Lighthouse scores
+
+        ### Business Case for Fixes
+        - **Market Access**: Accessibility opens your product to 15% more users
+        - **Legal Compliance**: Reduces ADA/Section 508 violation risk
+        - **SEO Benefits**: Many accessibility fixes improve search rankings
+        - **User Experience**: Benefits all users, not just those with disabilities
 
         ### Resources
         - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
@@ -496,32 +862,80 @@ runs:
 
         The following detailed reports are available in the workflow artifacts:
 
-        - **axe-report.json**: Detailed WCAG violation information
-        - **pa11y-report.html**: Visual content accessibility report  
+        - **axe-report.json**: Detailed WCAG violation information with fix guidance
+        - **pa11y-report.html**: Visual content accessibility report with screenshots
         - **lighthouse-accessibility-desktop.json**: Desktop performance audit
         - **lighthouse-accessibility-mobile.json**: Mobile performance audit
-        - **playwright-report/**: Interactive test results with screenshots
-        - **accessibility-dashboard.html**: This summary in visual format
+        - **playwright-report/**: Interactive test results with failure details
+        - **accessibility-dashboard.html**: Executive and developer dashboards
+        - **baseline-metadata.json**: Machine-readable scan results for tracking
 
         ## 🔄 Workflow Information
 
         - **Workflow Run:** ${{ inputs.workflow-run-number }}
         - **Tools Used:** ${{ inputs.scan-tools }}
+        - **Scan Quality:** $SCAN_QUALITY_SCORE% completion rate
         - **Generated:** $(date)
+
+        ## 📈 Tracking & Metrics
+
+        | Metric | Value | Notes |
+        |--------|-------|-------|
+        | Total Issues | $TOTAL_ISSUES | All tools combined |
+        | Critical Issues | $CRITICAL_VIOLATIONS | WCAG violations requiring immediate fix |
+        | User Impact | $ESTIMATED_USER_IMPACT% | Estimated percentage of users with disabilities affected |
+        | Fix Investment | $ESTIMATED_FIX_HOURS hours | Estimated development time required |
+        | Compliance Risk | $COMPLIANCE_RISK | Legal/regulatory risk assessment |
 
         ---
 
-        *This report was automatically generated by the accessibility scanning workflow.*
+        *This report was automatically generated by the Enterprise Accessibility Scanner.*
         EOF
         
         echo "summary-path=$SUMMARY_PATH" >> $GITHUB_OUTPUT
-        echo "✅ Generated markdown summary: $SUMMARY_PATH"
+        echo "✅ Generated enhanced markdown summary: $SUMMARY_PATH"
 
-    - name: Generate PR comment format
+    - name: Generate enhanced PR comment format
       if: inputs.generate-pr-comment == 'true'
       shell: bash
       run: |
         PR_COMMENT_PATH="${{ inputs.report-dir }}/pr-comment.md"
+        
+        # Calculate enhanced metrics for PR comment
+        CRITICAL_VIOLATIONS=${{ inputs.axe-violations }}
+        HIGH_PRIORITY_ISSUES=$((PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
+        
+        ESTIMATED_USER_IMPACT=0
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=25
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=15
+        elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=5
+        fi
+        
+        COMPLIANCE_RISK="LOW"
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          COMPLIANCE_RISK="HIGH"
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+          COMPLIANCE_RISK="MEDIUM"
+        fi
+        
+        ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + (TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES) / 2))
+        if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_FIX_HOURS=1
+        fi
+        
+        # Tool completion tracking  
+        TOOLS_COMPLETED=0
+        TOTAL_TOOLS=4
+        
+        if [ "${{ inputs.axe-violations }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.pa11y-issues }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.lighthouse-desktop-score }}" != "0" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        if [ "${{ inputs.playwright-violations }}" != "" ]; then TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1)); fi
+        
+        SCAN_QUALITY_SCORE=$((TOOLS_COMPLETED * 100 / TOTAL_TOOLS))
         
         cat > "$PR_COMMENT_PATH" << EOF
         ## 🔍 Accessibility Scan Results
@@ -529,34 +943,73 @@ runs:
         $([ "$OVERALL_STATUS" == "passed" ] && echo "### ✅ All accessibility tests passed!" || echo "### ❌ Accessibility issues found")
 
         **Scanned:** ${{ inputs.target-url }}  
-        **Standards:** ${{ inputs.standards }}
+        **Standards:** ${{ inputs.standards }}  
+        **Scan Quality:** $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "✅ High" || echo "⚠️ Medium") ($SCAN_QUALITY_SCORE% tools completed)
 
-        ### 📊 Summary
+        ### 📊 Business Impact Summary
 
-        | Tool | Result | Details |
-        |------|--------|---------|
-        | 🔧 Axe-core | $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "✅ ${{ inputs.axe-violations }} violations" || echo "❌ ${{ inputs.axe-violations }} violations") | WCAG 2.1 compliance |
-        | 📋 Pa11y | $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "✅ ${{ inputs.pa11y-issues }} issues" || echo "❌ ${{ inputs.pa11y-issues }} issues") | Content analysis |
-        | 💡 Lighthouse | $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "✅" || echo "⚠️") ${AVERAGE_LIGHTHOUSE_SCORE}% | Performance score |
-        | 🎭 Playwright | $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "✅ ${{ inputs.playwright-violations }} violations" || echo "❌ ${{ inputs.playwright-violations }} violations") | End-to-end tests |
+        | Metric | Value | Impact |
+        |--------|-------|--------|
+        | 🏢 **Compliance Risk** | **$COMPLIANCE_RISK** | $([ "$COMPLIANCE_RISK" == "HIGH" ] && echo "Immediate action required" || ([ "$COMPLIANCE_RISK" == "MEDIUM" ] && echo "Plan remediation" || echo "Low risk")) |
+        | 👥 **User Impact** | **$ESTIMATED_USER_IMPACT%** of users with disabilities | $([ "$ESTIMATED_USER_IMPACT" -gt "15" ] && echo "Significant barriers" || echo "Limited impact") |
+        | ⏱️ **Fix Investment** | **$ESTIMATED_FIX_HOURS hours** | $([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "Quick wins" || echo "Moderate effort") |
 
-        $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'ISSUES_FOUND'
+        ### 🔧 Technical Results
+
+        | Tool | Result | Status | Notes |
+        |------|--------|--------|-------|
+        | 🔧 Axe-core | $([ "${{ inputs.axe-violations }}" == "" ] && echo "⚠️ Tool Failed" || ([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "✅ ${{ inputs.axe-violations }} violations" || echo "❌ ${{ inputs.axe-violations }} violations")) | WCAG 2.1 compliance | $([ "${{ inputs.axe-violations }}" == "" ] && echo "Check workflow logs" || echo "Critical for legal compliance") |
+        | 📋 Pa11y | $([ "${{ inputs.pa11y-issues }}" == "" ] && echo "⚠️ Tool Failed" || ([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "✅ ${{ inputs.pa11y-issues }} issues" || echo "❌ ${{ inputs.pa11y-issues }} issues")) | Content analysis | $([ "${{ inputs.pa11y-issues }}" == "" ] && echo "Check workflow logs" || echo "Affects content quality") |
+        | 💡 Lighthouse | $([ "${{ inputs.lighthouse-desktop-score }}" == "0" ] && echo "⚠️ Tool Failed" || ([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "✅" || echo "⚠️") ${AVERAGE_LIGHTHOUSE_SCORE}%) | Performance score | $([ "${{ inputs.lighthouse-desktop-score }}" == "0" ] && echo "Check workflow logs" || echo "Desktop: ${{ inputs.lighthouse-desktop-score }}%, Mobile: ${{ inputs.lighthouse-mobile-score }}%") |
+        | 🎭 Playwright | $([ "${{ inputs.playwright-violations }}" == "" ] && echo "⚠️ Tool Failed" || ([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "✅ ${{ inputs.playwright-violations }} violations" || echo "❌ ${{ inputs.playwright-violations }} violations")) | End-to-end tests | $([ "${{ inputs.playwright-violations }}" == "" ] && echo "Check workflow logs" || echo "Tests user interactions") |
+
+        EOF
+        
+        # Add scan quality warning if needed
+        if [ "$SCAN_QUALITY_SCORE" -lt "75" ]; then
+          cat >> "$PR_COMMENT_PATH" << 'EOF'
+        > ⚠️ **Scan Quality Notice:** Some tools failed to complete. Results may be incomplete. Consider re-running the workflow.
+
+        EOF
+        fi
+        
+        # Add conditional action plan
+        if [ "$TOTAL_ISSUES" -gt "0" ]; then
+          cat >> "$PR_COMMENT_PATH" << 'EOF'
         ### 🎯 Priority Actions Required
 
-        1. **Critical**: Fix Axe-core violations for WCAG compliance
-        2. **High**: Address Lighthouse structural issues  
-        3. **Medium**: Resolve Pa11y content problems
-        4. **Medium**: Fix Playwright interaction issues
+        EOF
+          
+          if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+            echo "1. **🚨 CRITICAL**: Fix $CRITICAL_VIOLATIONS WCAG violations for legal compliance" >> "$PR_COMMENT_PATH"
+          fi
+          
+          if [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+            echo "$([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "2" || echo "1"). **🏗️ HIGH**: Address $HIGH_PRIORITY_ISSUES structural/interaction issues" >> "$PR_COMMENT_PATH"
+          fi
+          
+          if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ] && [ "$AVERAGE_LIGHTHOUSE_SCORE" != "0" ]; then
+            NEXT_NUM=$((CRITICAL_VIOLATIONS > 0 ? (HIGH_PRIORITY_ISSUES > 0 ? 3 : 2) : (HIGH_PRIORITY_ISSUES > 0 ? 2 : 1)))
+            echo "$NEXT_NUM. **💡 MEDIUM**: Improve Lighthouse score from $AVERAGE_LIGHTHOUSE_SCORE% to 90%+" >> "$PR_COMMENT_PATH"
+          fi
+          
+          cat >> "$PR_COMMENT_PATH" << 'EOF'
 
-        💡 **Tip**: Start with Axe violations as they have the highest impact on users with disabilities.
-        ISSUES_FOUND
-        )
+        💡 **Developer Tip**: Start with Axe violations as they have the highest impact on users with disabilities and legal compliance.
 
+        EOF
+        fi
+
+        cat >> "$PR_COMMENT_PATH" << EOF
         ### 📁 Detailed Reports
 
-        Download the complete accessibility scan results from the [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.workflow-run-id }}) for detailed analysis.
+        Download the complete accessibility scan results from the [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.workflow-run-id }}) for detailed analysis:
 
-        $([ "$TOTAL_ISSUES" -eq "0" ] && echo "🎉 **Great work!** Your changes maintain excellent accessibility standards." || echo "🔧 **Next steps**: Review the detailed reports and implement the recommended fixes.")
+        - **📊 Executive Dashboard**: \`accessibility-dashboard.html\` (business metrics)
+        - **🔧 Developer Guide**: Detailed technical findings and fix guidance
+        - **📈 Trend Data**: \`baseline-metadata.json\` for tracking progress
+
+        $([ "$TOTAL_ISSUES" -eq "0" ] && echo "🎉 **Great work!** Your changes maintain excellent accessibility standards." || echo "🔧 **Next steps**: Review the detailed reports and implement fixes by priority.")
 
         <details>
         <summary>📋 View scan metadata</summary>
@@ -565,30 +1018,92 @@ runs:
         - **Tools Used:** ${{ inputs.scan-tools }}
         - **Scan Time:** $(date)
         - **Total Issues:** $TOTAL_ISSUES
+        - **Critical Issues:** $CRITICAL_VIOLATIONS
+        - **Scan Quality:** $SCAN_QUALITY_SCORE% ($TOOLS_COMPLETED/$TOTAL_TOOLS tools completed)
+        - **Business Impact:** $ESTIMATED_USER_IMPACT% user impact, $COMPLIANCE_RISK compliance risk
+        - **Fix Estimate:** $ESTIMATED_FIX_HOURS hours development time
 
         </details>
         EOF
         
         echo "pr-comment-path=$PR_COMMENT_PATH" >> $GITHUB_OUTPUT
-        echo "✅ Generated PR comment: $PR_COMMENT_PATH"
+        echo "✅ Generated enhanced PR comment: $PR_COMMENT_PATH"
 
-    - name: Create issue summary for tracking
+    - name: Create enhanced issue summary for tracking
       shell: bash
       run: |
         ISSUE_SUMMARY_PATH="${{ inputs.report-dir }}/issue-summary.json"
         
-        # Build priority actions array properly without trailing commas
-        PRIORITY_ACTIONS=""
+        # Calculate enhanced metrics
+        CRITICAL_VIOLATIONS=${{ inputs.axe-violations }}
+        HIGH_PRIORITY_ISSUES=$((PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
         
-        if [ "${{ inputs.axe-violations }}" -gt "0" ]; then
-          PRIORITY_ACTIONS="\"Fix ${{ inputs.axe-violations }} critical WCAG violations\""
+        ESTIMATED_USER_IMPACT=0
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=25
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=15
+        elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_USER_IMPACT=5
         fi
         
-        if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ]; then
+        COMPLIANCE_RISK="LOW"
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          COMPLIANCE_RISK="HIGH"
+        elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+          COMPLIANCE_RISK="MEDIUM"
+        fi
+        
+        ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + (TOTAL_ISSUES - CRITICAL_VIOLATIONS - HIGH_PRIORITY_ISSUES) / 2))
+        if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          ESTIMATED_FIX_HOURS=1
+        fi
+        
+        # Tool completion tracking
+        TOOLS_COMPLETED=0
+        TOTAL_TOOLS=4
+        TOOL_FAILURES=""
+        
+        if [ "${{ inputs.axe-violations }}" != "" ]; then 
+          TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1))
+        else
+          TOOL_FAILURES="${TOOL_FAILURES}axe-core, "
+        fi
+        
+        if [ "${{ inputs.pa11y-issues }}" != "" ]; then 
+          TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1))
+        else
+          TOOL_FAILURES="${TOOL_FAILURES}pa11y, "
+        fi
+        
+        if [ "${{ inputs.lighthouse-desktop-score }}" != "0" ]; then 
+          TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1))
+        else
+          TOOL_FAILURES="${TOOL_FAILURES}lighthouse, "
+        fi
+        
+        if [ "${{ inputs.playwright-violations }}" != "" ]; then 
+          TOOLS_COMPLETED=$((TOOLS_COMPLETED + 1))
+        else
+          TOOL_FAILURES="${TOOL_FAILURES}playwright, "
+        fi
+        
+        # Remove trailing comma and space
+        TOOL_FAILURES=$(echo "$TOOL_FAILURES" | sed 's/, $//')
+        SCAN_QUALITY_SCORE=$((TOOLS_COMPLETED * 100 / TOTAL_TOOLS))
+        
+        # Build enhanced priority actions array
+        PRIORITY_ACTIONS=""
+        
+        if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+          PRIORITY_ACTIONS="\"Fix $CRITICAL_VIOLATIONS critical WCAG violations (high legal risk)\""
+        fi
+        
+        if [ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ] && [ "$AVERAGE_LIGHTHOUSE_SCORE" != "0" ]; then
           if [ -n "$PRIORITY_ACTIONS" ]; then
-            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Improve Lighthouse accessibility score to 90+\""
+            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Improve Lighthouse accessibility score from $AVERAGE_LIGHTHOUSE_SCORE% to 90+\""
           else
-            PRIORITY_ACTIONS="\"Improve Lighthouse accessibility score to 90+\""
+            PRIORITY_ACTIONS="\"Improve Lighthouse accessibility score from $AVERAGE_LIGHTHOUSE_SCORE% to 90+\""
           fi
         fi
         
@@ -608,16 +1123,31 @@ runs:
           fi
         fi
         
+        # Add tool failure actions if needed
+        if [ "$SCAN_QUALITY_SCORE" -lt "100" ]; then
+          if [ -n "$PRIORITY_ACTIONS" ]; then
+            PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Re-run accessibility scan (some tools failed: $TOOL_FAILURES)\""
+          else
+            PRIORITY_ACTIONS="\"Re-run accessibility scan (some tools failed: $TOOL_FAILURES)\""
+          fi
+        fi
+        
         if [ -n "$PRIORITY_ACTIONS" ]; then
-          PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Re-run accessibility scan to verify fixes\""
+          PRIORITY_ACTIONS="$PRIORITY_ACTIONS, \"Validate all fixes with follow-up accessibility scan\""
         else
-          PRIORITY_ACTIONS="\"Re-run accessibility scan to verify fixes\""
+          PRIORITY_ACTIONS="\"Run regular accessibility scans to maintain standards\""
         fi
         
         cat > "$ISSUE_SUMMARY_PATH" << EOF
         {
-          "total_issues": $TOTAL_ISSUES,
-          "breakdown": {
+          "scan_results": {
+            "total_issues": $TOTAL_ISSUES,
+            "status": "$OVERALL_STATUS",
+            "scan_quality_score": $SCAN_QUALITY_SCORE,
+            "tools_completed": $TOOLS_COMPLETED,
+            "total_tools": $TOTAL_TOOLS
+          },
+          "technical_breakdown": {
             "axe_violations": ${{ inputs.axe-violations }},
             "pa11y_issues": ${{ inputs.pa11y-issues }},
             "playwright_violations": ${{ inputs.playwright-violations }},
@@ -625,25 +1155,44 @@ runs:
             "lighthouse_mobile_score": ${{ inputs.lighthouse-mobile-score }},
             "average_lighthouse_score": $AVERAGE_LIGHTHOUSE_SCORE
           },
+          "business_impact": {
+            "compliance_risk_level": "$COMPLIANCE_RISK",
+            "estimated_user_impact_percentage": $ESTIMATED_USER_IMPACT,
+            "estimated_fix_hours": $ESTIMATED_FIX_HOURS,
+            "business_ready": $([ "$TOTAL_ISSUES" -eq "0" ] && echo "true" || echo "false"),
+            "immediate_action_required": $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "true" || echo "false")
+          },
           "scan_metadata": {
             "target_url": "${{ inputs.target-url }}",
             "standards": "${{ inputs.standards }}",
             "tools_used": "${{ inputs.scan-tools }}",
             "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "workflow_run_id": "${{ inputs.workflow-run-id }}",
-            "workflow_run_number": "${{ inputs.workflow-run-number }}"
+            "workflow_run_number": "${{ inputs.workflow-run-number }}",
+            "tool_failures": $([ -n "$TOOL_FAILURES" ] && echo "\"$TOOL_FAILURES\"" || echo "null")
           },
-          "status": "$OVERALL_STATUS",
           "priority_actions": [
             $PRIORITY_ACTIONS
-          ]
+          ],
+          "executive_summary": {
+            "recommendation": "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "Deploy with confidence - all accessibility standards met" || ([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "Delay deployment - critical compliance issues require immediate fixes" || ([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "Quick fixes available - implement before next release" || echo "Plan accessibility improvements for next development cycle")))",
+            "risk_assessment": "$([ "$COMPLIANCE_RISK" == "HIGH" ] && echo "High legal/regulatory risk due to WCAG violations" || ([ "$COMPLIANCE_RISK" == "MEDIUM" ] && echo "Moderate risk - plan remediation within 1-2 sprints" || echo "Low risk - maintain current accessibility standards"))",
+            "user_impact_summary": "$([ "$ESTIMATED_USER_IMPACT" -eq "0" ] && echo "All users can access the application effectively" || echo "$ESTIMATED_USER_IMPACT% of users with disabilities may face barriers")"
+          }
         }
         EOF
         
-        echo "✅ Generated issue summary: $ISSUE_SUMMARY_PATH"
+        echo "✅ Generated enhanced issue summary: $ISSUE_SUMMARY_PATH"
         
-        echo "=== Final Report Generation Summary ==="
+        echo "=== Final Enhanced Report Generation Summary ==="
         echo "Total Issues: $TOTAL_ISSUES"
+        echo "Critical Violations: $CRITICAL_VIOLATIONS"
+        echo "Compliance Risk: $COMPLIANCE_RISK"
+        echo "User Impact: $ESTIMATED_USER_IMPACT%"
+        echo "Fix Investment: $ESTIMATED_FIX_HOURS hours"
+        echo "Scan Quality: $SCAN_QUALITY_SCORE% ($TOOLS_COMPLETED/$TOTAL_TOOLS tools)"
         echo "Overall Status: $OVERALL_STATUS"
-        echo "Reports Generated:"
+        echo "Business Ready: $([ "$TOTAL_ISSUES" -eq "0" ] && echo "YES" || echo "NO")"
+        echo ""
+        echo "Enhanced Reports Generated:"
         ls -la ${{ inputs.report-dir }}/ | grep -E '\.(html|md|json)$' || echo "No reports found"
