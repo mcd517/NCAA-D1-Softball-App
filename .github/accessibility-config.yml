@@ -1,0 +1,128 @@
+# Accessibility Scanner Configuration
+# This file defines default settings and thresholds for accessibility scanning
+
+# Default scan settings
+default:
+  target_url: "https://ncaa-d1-softball.netlify.app/"
+  standards: "WCAG2AA"  # WCAG2A, WCAG2AA, WCAG2AAA, Section508, EN301549
+  tools: "axe,pa11y,lighthouse,playwright"
+  report_dir: "accessibility-reports"
+  timeout: 30000
+  retries: 2
+  parallel: true
+
+# Quality gates and thresholds
+thresholds:
+  max_critical_violations: 0      # Fail if more than this many critical violations
+  max_serious_violations: 5       # Fail if more than this many serious violations  
+  max_moderate_violations: 10     # Fail if more than this many moderate violations
+  max_minor_violations: 20        # Fail if more than this many minor violations
+  min_lighthouse_score: 90        # Fail if Lighthouse score below this
+  max_pa11y_issues: 5            # Fail if more than this many Pa11y issues
+  max_playwright_violations: 3    # Fail if more than this many Playwright violations
+
+# Tool-specific configurations
+tools:
+  axe:
+    standards: ["wcag2a", "wcag2aa", "wcag21aa"]
+    chrome_options: ["no-sandbox", "disable-dev-shm-usage"]
+    fail_on_violations: false
+    include_experimental: false
+    
+  pa11y:
+    standard: "WCAG2AA"
+    chrome_options: ["no-sandbox", "disable-dev-shm-usage", "disable-gpu", "headless"]
+    reporters: ["json", "html", "csv"]
+    include_warnings: true
+    include_notices: true
+    ignore_rules: []  # Add rule IDs to ignore specific issues
+    
+  lighthouse:
+    form_factors: ["desktop", "mobile"]
+    categories: ["accessibility"]
+    chrome_flags: ["headless", "no-sandbox", "disable-dev-shm-usage"]
+    
+  playwright:
+    browsers: ["chromium"]
+    workers: 1
+    test_file: "tests/accessibility/accessibility.spec.js"
+
+# Multi-standard support
+standards:
+  WCAG2A:
+    description: "Web Content Accessibility Guidelines 2.1 Level A"
+    tags: ["wcag2a", "wcag21a"]
+    
+  WCAG2AA:
+    description: "Web Content Accessibility Guidelines 2.1 Level AA"
+    tags: ["wcag2a", "wcag2aa", "wcag21aa"]
+    
+  WCAG2AAA:
+    description: "Web Content Accessibility Guidelines 2.1 Level AAA"
+    tags: ["wcag2a", "wcag2aa", "wcag2aaa", "wcag21aaa"]
+    
+  Section508:
+    description: "Section 508 (US Federal Accessibility)"
+    tags: ["section508", "wcag2a", "wcag2aa"]
+    
+  EN301549:
+    description: "EN 301 549 (European Accessibility Standard)"
+    tags: ["en301549", "wcag2a", "wcag2aa"]
+
+# Workflow execution settings
+execution:
+  parallel_tools: true           # Run tools in parallel for speed
+  fail_fast: true               # Stop on first critical failure
+  continue_on_error: true       # Continue other tools if one fails
+  cache_tools: true             # Cache tool installations
+  generate_artifacts: true      # Upload reports as artifacts
+  
+# Reporting and notifications
+reporting:
+  generate_dashboard: true       # Create HTML dashboard
+  generate_summary: true        # Create markdown summary  
+  generate_pr_comment: true     # Create PR comment format
+  include_screenshots: true     # Include failure screenshots
+  include_video: false          # Include test videos (large files)
+  
+  # Webhook notifications (optional)
+  webhooks:
+    slack_url: ""               # Slack webhook URL for notifications
+    teams_url: ""               # Microsoft Teams webhook URL
+    discord_url: ""             # Discord webhook URL
+    
+# Environment-specific overrides
+environments:
+  development:
+    target_url: "http://localhost:3000"
+    thresholds:
+      max_critical_violations: 3
+      max_serious_violations: 10
+      min_lighthouse_score: 70
+      
+  staging:
+    target_url: "https://staging.ncaa-d1-softball.netlify.app/"
+    thresholds:
+      max_critical_violations: 1
+      max_serious_violations: 5
+      min_lighthouse_score: 85
+      
+  production:
+    target_url: "https://ncaa-d1-softball.netlify.app/"
+    thresholds:
+      max_critical_violations: 0
+      max_serious_violations: 2
+      min_lighthouse_score: 90
+
+# Repository-specific settings (can be overridden)
+repository:
+  owner: "seanmac5291"
+  name: "NCAA-D1-Softball-WebApp"
+  branch: "main"
+  
+# Governance settings
+governance:
+  require_approval: false        # Require manual approval for accessibility failures
+  block_merges: false           # Block PR merges on accessibility failures
+  auto_create_issues: false     # Automatically create GitHub issues for failures
+  assign_reviewers: []          # GitHub usernames to assign for review

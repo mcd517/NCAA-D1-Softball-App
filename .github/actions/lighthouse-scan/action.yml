@@ -1,0 +1,239 @@
+name: 'Lighthouse Accessibility Scan'
+description: 'Run Lighthouse accessibility audit for desktop and mobile'
+inputs:
+  target-url:
+    description: 'URL to scan'
+    required: true
+  form-factors:
+    description: 'Form factors to test (desktop,mobile)'
+    required: false
+    default: 'desktop,mobile'
+  categories:
+    description: 'Lighthouse categories to test'
+    required: false
+    default: 'accessibility'
+  chrome-flags:
+    description: 'Chrome flags for headless browsing'
+    required: false
+    default: 'headless,no-sandbox,disable-dev-shm-usage'
+  timeout:
+    description: 'Maximum wait time for load in milliseconds'
+    required: false
+    default: '30000'
+  report-dir:
+    description: 'Directory to save reports'
+    required: false
+    default: 'accessibility-reports'
+  min-score:
+    description: 'Minimum accessibility score required (0-100)'
+    required: false
+    default: '0'
+  fail-on-score:
+    description: 'Fail the action if score is below minimum'
+    required: false
+    default: 'false'
+
+outputs:
+  desktop-score:
+    description: 'Desktop accessibility score'
+    value: ${{ steps.scan.outputs.desktop-score }}
+  mobile-score:
+    description: 'Mobile accessibility score'
+    value: ${{ steps.scan.outputs.mobile-score }}
+  desktop-report-path:
+    description: 'Path to desktop report'
+    value: ${{ steps.scan.outputs.desktop-report-path }}
+  mobile-report-path:
+    description: 'Path to mobile report'
+    value: ${{ steps.scan.outputs.mobile-report-path }}
+  scan-status:
+    description: 'Status of the scan (passed/failed)'
+    value: ${{ steps.scan.outputs.scan-status }}
+  issues-count:
+    description: 'Total number of accessibility issues found'
+    value: ${{ steps.scan.outputs.issues-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Lighthouse accessibility scans
+      id: scan
+      shell: bash
+      run: |
+        echo "Running Lighthouse accessibility scan..."
+        echo "Target URL: ${{ inputs.target-url }}"
+        echo "Form factors: ${{ inputs.form-factors }}"
+        echo "Categories: ${{ inputs.categories }}"
+        
+        # Create report directory
+        mkdir -p ${{ inputs.report-dir }}
+        
+        # Prepare Chrome flags
+        CHROME_FLAGS=""
+        IFS=',' read -ra FLAGS <<< "${{ inputs.chrome-flags }}"
+        for flag in "${FLAGS[@]}"; do
+          CHROME_FLAGS="$CHROME_FLAGS --$flag"
+        done
+        
+        DESKTOP_SCORE=0
+        MOBILE_SCORE=0
+        DESKTOP_REPORT=""
+        MOBILE_REPORT=""
+        TOTAL_ISSUES=0
+        SCAN_STATUS="passed"
+        
+        # Parse form factors and run scans
+        IFS=',' read -ra FORM_FACTORS <<< "${{ inputs.form-factors }}"
+        
+        for form_factor in "${FORM_FACTORS[@]}"; do
+          case "$form_factor" in
+            "desktop")
+              DESKTOP_REPORT="${{ inputs.report-dir }}/lighthouse-accessibility-desktop.json"
+              echo "Running desktop accessibility scan..."
+              
+              if lighthouse "${{ inputs.target-url }}" \
+                --only-categories="${{ inputs.categories }}" \
+                --output=json \
+                --output-path="$DESKTOP_REPORT" \
+                --chrome-flags="$CHROME_FLAGS" \
+                --max-wait-for-load=${{ inputs.timeout }} \
+                --emulated-form-factor=desktop \
+                --quiet; then
+                echo "✅ Desktop scan completed"
+                
+                if [ -f "$DESKTOP_REPORT" ]; then
+                  DESKTOP_SCORE=$(jq '.categories.accessibility.score * 100' "$DESKTOP_REPORT" 2>/dev/null || echo "0")
+                  echo "Desktop accessibility score: $DESKTOP_SCORE"
+                  
+                  # Count failed audits
+                  DESKTOP_ISSUES=$(jq '[.audits | to_entries[] | select(.value.score != null and .value.score < 1)] | length' "$DESKTOP_REPORT" 2>/dev/null || echo "0")
+                  TOTAL_ISSUES=$((TOTAL_ISSUES + DESKTOP_ISSUES))
+                  echo "Desktop issues found: $DESKTOP_ISSUES"
+                fi
+              else
+                echo "⚠️ Desktop scan failed"
+                SCAN_STATUS="failed"
+              fi
+              ;;
+              
+            "mobile")
+              MOBILE_REPORT="${{ inputs.report-dir }}/lighthouse-accessibility-mobile.json"
+              echo "Running mobile accessibility scan..."
+              
+              if lighthouse "${{ inputs.target-url }}" \
+                --only-categories="${{ inputs.categories }}" \
+                --output=json \
+                --output-path="$MOBILE_REPORT" \
+                --chrome-flags="$CHROME_FLAGS" \
+                --max-wait-for-load=${{ inputs.timeout }} \
+                --emulated-form-factor=mobile \
+                --quiet; then
+                echo "✅ Mobile scan completed"
+                
+                if [ -f "$MOBILE_REPORT" ]; then
+                  MOBILE_SCORE=$(jq '.categories.accessibility.score * 100' "$MOBILE_REPORT" 2>/dev/null || echo "0")
+                  echo "Mobile accessibility score: $MOBILE_SCORE"
+                  
+                  # Count failed audits
+                  MOBILE_ISSUES=$(jq '[.audits | to_entries[] | select(.value.score != null and .value.score < 1)] | length' "$MOBILE_REPORT" 2>/dev/null || echo "0")
+                  TOTAL_ISSUES=$((TOTAL_ISSUES + MOBILE_ISSUES))
+                  echo "Mobile issues found: $MOBILE_ISSUES"
+                fi
+              else
+                echo "⚠️ Mobile scan failed"
+                SCAN_STATUS="failed"
+              fi
+              ;;
+              
+            *)
+              echo "Unknown form factor: $form_factor"
+              ;;
+          esac
+        done
+        
+        # Check score thresholds
+        MIN_SCORE=${{ inputs.min-score }}
+        if [ "$MIN_SCORE" != "0" ]; then
+          if (( $(echo "$DESKTOP_SCORE < $MIN_SCORE" | bc -l) )) && [ "$DESKTOP_SCORE" != "0" ]; then
+            echo "❌ Desktop score below threshold: $DESKTOP_SCORE < $MIN_SCORE"
+            SCAN_STATUS="failed"
+          fi
+          
+          if (( $(echo "$MOBILE_SCORE < $MIN_SCORE" | bc -l) )) && [ "$MOBILE_SCORE" != "0" ]; then
+            echo "❌ Mobile score below threshold: $MOBILE_SCORE < $MIN_SCORE"
+            SCAN_STATUS="failed"
+          fi
+        fi
+        
+        echo "=== Lighthouse Summary ==="
+        echo "Desktop Score: $DESKTOP_SCORE"
+        echo "Mobile Score: $MOBILE_SCORE"
+        echo "Total Issues: $TOTAL_ISSUES"
+        echo "Status: $SCAN_STATUS"
+        
+        # Set outputs
+        echo "desktop-score=$DESKTOP_SCORE" >> $GITHUB_OUTPUT
+        echo "mobile-score=$MOBILE_SCORE" >> $GITHUB_OUTPUT
+        echo "desktop-report-path=$DESKTOP_REPORT" >> $GITHUB_OUTPUT
+        echo "mobile-report-path=$MOBILE_REPORT" >> $GITHUB_OUTPUT
+        echo "scan-status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+        echo "issues-count=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+        
+        # Fail if requested and score below threshold
+        if [ "${{ inputs.fail-on-score }}" == "true" ] && [ "$SCAN_STATUS" == "failed" ]; then
+          echo "❌ Failing due to accessibility score below threshold"
+          exit 1
+        fi
+
+    - name: Generate detailed audit summary
+      shell: bash
+      run: |
+        echo "=== Detailed Lighthouse Audit Summary ==="
+        
+        if [ -f "${{ steps.scan.outputs.desktop-report-path }}" ]; then
+          echo "📱 Desktop Accessibility Report:"
+          echo "Score: ${{ steps.scan.outputs.desktop-score }}/100"
+          
+          # Show failed audits
+          echo "Failed Audits:"
+          jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | "  - \(.key): \(.value.title)"' "${{ steps.scan.outputs.desktop-report-path }}" 2>/dev/null || echo "  No specific audit failures found"
+          
+          # Show opportunities if any
+          echo "Opportunities for improvement:"
+          jq -r '.audits | to_entries[] | select(.value.details and .value.details.items and (.value.details.items | length > 0)) | "  - \(.value.title): \(.value.description)"' "${{ steps.scan.outputs.desktop-report-path }}" 2>/dev/null | head -5 || echo "  No specific opportunities found"
+          echo ""
+        fi
+        
+        if [ -f "${{ steps.scan.outputs.mobile-report-path }}" ]; then
+          echo "📱 Mobile Accessibility Report:"
+          echo "Score: ${{ steps.scan.outputs.mobile-score }}/100"
+          
+          # Show failed audits
+          echo "Failed Audits:"
+          jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | "  - \(.key): \(.value.title)"' "${{ steps.scan.outputs.mobile-report-path }}" 2>/dev/null || echo "  No specific audit failures found"
+          
+          # Show opportunities if any
+          echo "Opportunities for improvement:"
+          jq -r '.audits | to_entries[] | select(.value.details and .value.details.items and (.value.details.items | length > 0)) | "  - \(.value.title): \(.value.description)"' "${{ steps.scan.outputs.mobile-report-path }}" 2>/dev/null | head -5 || echo "  No specific opportunities found"
+        fi
+
+    - name: Validate reports
+      shell: bash
+      run: |
+        echo "=== Report Validation ==="
+        
+        if [ -n "${{ steps.scan.outputs.desktop-report-path }}" ] && [ -f "${{ steps.scan.outputs.desktop-report-path }}" ]; then
+          if jq empty "${{ steps.scan.outputs.desktop-report-path }}" 2>/dev/null; then
+            echo "✅ Desktop Report: Valid JSON ($(wc -c < "${{ steps.scan.outputs.desktop-report-path }}") bytes)"
+          else
+            echo "❌ Desktop Report: Invalid JSON format"
+          fi
+        fi
+        
+        if [ -n "${{ steps.scan.outputs.mobile-report-path }}" ] && [ -f "${{ steps.scan.outputs.mobile-report-path }}" ]; then
+          if jq empty "${{ steps.scan.outputs.mobile-report-path }}" 2>/dev/null; then
+            echo "✅ Mobile Report: Valid JSON ($(wc -c < "${{ steps.scan.outputs.mobile-report-path }}") bytes)"
+          else
+            echo "❌ Mobile Report: Invalid JSON format"
+          fi
+        fi

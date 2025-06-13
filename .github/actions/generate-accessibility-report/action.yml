@@ -1,0 +1,553 @@
+name: 'Generate Accessibility Report'
+description: 'Aggregate accessibility scan results into comprehensive reports'
+inputs:
+  report-dir:
+    description: 'Directory containing scan reports'
+    required: false
+    default: 'accessibility-reports'
+  target-url:
+    description: 'URL that was scanned'
+    required: true
+  standards:
+    description: 'Accessibility standards tested'
+    required: false
+    default: 'WCAG 2.1 AA'
+  scan-tools:
+    description: 'Tools that were used for scanning'
+    required: false
+    default: 'axe-core,pa11y,lighthouse,playwright'
+  axe-violations:
+    description: 'Number of axe violations found'
+    required: false
+    default: '0'
+  pa11y-issues:
+    description: 'Number of pa11y issues found'
+    required: false
+    default: '0'
+  lighthouse-desktop-score:
+    description: 'Lighthouse desktop accessibility score'
+    required: false
+    default: '0'
+  lighthouse-mobile-score:
+    description: 'Lighthouse mobile accessibility score'
+    required: false
+    default: '0'
+  playwright-violations:
+    description: 'Number of Playwright violations found'
+    required: false
+    default: '0'
+  workflow-run-id:
+    description: 'GitHub workflow run ID'
+    required: false
+    default: ''
+  workflow-run-number:
+    description: 'GitHub workflow run number'
+    required: false
+    default: ''
+  generate-dashboard:
+    description: 'Generate HTML dashboard'
+    required: false
+    default: 'true'
+  generate-summary:
+    description: 'Generate markdown summary'
+    required: false
+    default: 'true'
+  generate-pr-comment:
+    description: 'Generate PR comment format'
+    required: false
+    default: 'true'
+
+outputs:
+  total-issues:
+    description: 'Total number of accessibility issues found'
+    value: ${{ steps.aggregate.outputs.total-issues }}
+  overall-status:
+    description: 'Overall scan status (passed/failed)'
+    value: ${{ steps.aggregate.outputs.overall-status }}
+  dashboard-path:
+    description: 'Path to HTML dashboard'
+    value: ${{ steps.aggregate.outputs.dashboard-path }}
+  summary-path:
+    description: 'Path to markdown summary'
+    value: ${{ steps.aggregate.outputs.summary-path }}
+  pr-comment-path:
+    description: 'Path to PR comment file'
+    value: ${{ steps.aggregate.outputs.pr-comment-path }}
+  baseline-metadata-path:
+    description: 'Path to baseline metadata'
+    value: ${{ steps.aggregate.outputs.baseline-metadata-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Aggregate scan results
+      id: aggregate
+      shell: bash
+      run: |
+        echo "Aggregating accessibility scan results..."
+        
+        # Create report directory if it doesn't exist
+        mkdir -p ${{ inputs.report-dir }}
+        
+        # Calculate totals
+        AXE_VIOLATIONS=${{ inputs.axe-violations }}
+        PA11Y_ISSUES=${{ inputs.pa11y-issues }}
+        PLAYWRIGHT_VIOLATIONS=${{ inputs.playwright-violations }}
+        LIGHTHOUSE_DESKTOP_SCORE=${{ inputs.lighthouse-desktop-score }}
+        LIGHTHOUSE_MOBILE_SCORE=${{ inputs.lighthouse-mobile-score }}
+        
+        TOTAL_ISSUES=$((AXE_VIOLATIONS + PA11Y_ISSUES + PLAYWRIGHT_VIOLATIONS))
+        
+        # Determine overall status
+        OVERALL_STATUS="passed"
+        if [ "$TOTAL_ISSUES" -gt "0" ]; then
+          OVERALL_STATUS="failed"
+        fi
+        
+        # Calculate average Lighthouse score
+        if [ "$LIGHTHOUSE_DESKTOP_SCORE" != "0" ] && [ "$LIGHTHOUSE_MOBILE_SCORE" != "0" ]; then
+          AVERAGE_LIGHTHOUSE_SCORE=$(echo "($LIGHTHOUSE_DESKTOP_SCORE + $LIGHTHOUSE_MOBILE_SCORE) / 2" | bc -l)
+        elif [ "$LIGHTHOUSE_DESKTOP_SCORE" != "0" ]; then
+          AVERAGE_LIGHTHOUSE_SCORE=$LIGHTHOUSE_DESKTOP_SCORE
+        elif [ "$LIGHTHOUSE_MOBILE_SCORE" != "0" ]; then
+          AVERAGE_LIGHTHOUSE_SCORE=$LIGHTHOUSE_MOBILE_SCORE
+        else
+          AVERAGE_LIGHTHOUSE_SCORE=0
+        fi
+        
+        echo "=== Aggregation Summary ==="
+        echo "Total Issues: $TOTAL_ISSUES"
+        echo "  - Axe Violations: $AXE_VIOLATIONS"
+        echo "  - Pa11y Issues: $PA11Y_ISSUES"
+        echo "  - Playwright Violations: $PLAYWRIGHT_VIOLATIONS"
+        echo "Average Lighthouse Score: $AVERAGE_LIGHTHOUSE_SCORE"
+        echo "Overall Status: $OVERALL_STATUS"
+        
+        # Set outputs
+        echo "total-issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+        echo "overall-status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+        
+        # Store variables for next steps
+        echo "TOTAL_ISSUES=$TOTAL_ISSUES" >> $GITHUB_ENV
+        echo "OVERALL_STATUS=$OVERALL_STATUS" >> $GITHUB_ENV
+        echo "AVERAGE_LIGHTHOUSE_SCORE=$AVERAGE_LIGHTHOUSE_SCORE" >> $GITHUB_ENV
+
+    - name: Generate baseline metadata
+      shell: bash
+      run: |
+        METADATA_PATH="${{ inputs.report-dir }}/baseline-metadata.json"
+        
+        cat > "$METADATA_PATH" << EOF
+        {
+          "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "workflow_run_id": "${{ inputs.workflow-run-id }}",
+          "workflow_run_number": "${{ inputs.workflow-run-number }}",
+          "target_url": "${{ inputs.target-url }}",
+          "standards": "${{ inputs.standards }}",
+          "tools_used": "${{ inputs.scan-tools }}",
+          "results": {
+            "total_issues": $TOTAL_ISSUES,
+            "axe_violations": ${{ inputs.axe-violations }},
+            "pa11y_issues": ${{ inputs.pa11y-issues }},
+            "playwright_violations": ${{ inputs.playwright-violations }},
+            "lighthouse_desktop_score": ${{ inputs.lighthouse-desktop-score }},
+            "lighthouse_mobile_score": ${{ inputs.lighthouse-mobile-score }},
+            "average_lighthouse_score": $AVERAGE_LIGHTHOUSE_SCORE
+          },
+          "status": "$OVERALL_STATUS"
+        }
+        EOF
+        
+        echo "baseline-metadata-path=$METADATA_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Generated baseline metadata: $METADATA_PATH"
+
+    - name: Generate HTML dashboard
+      if: inputs.generate-dashboard == 'true'
+      shell: bash
+      run: |
+        DASHBOARD_PATH="${{ inputs.report-dir }}/accessibility-dashboard.html"
+        
+        # Create comprehensive HTML dashboard
+        cat > "$DASHBOARD_PATH" << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Accessibility Scan Dashboard</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    line-height: 1.6;
+                    margin: 0;
+                    padding: 20px;
+                    background-color: #f5f5f5;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    overflow: hidden;
+                }
+                .header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 2.5em;
+                }
+                .status-passed { color: #22c55e; }
+                .status-failed { color: #ef4444; }
+                .metrics {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    padding: 30px;
+                }
+                .metric-card {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 20px;
+                    text-align: center;
+                }
+                .metric-card h3 {
+                    margin-top: 0;
+                    color: #374151;
+                }
+                .metric-value {
+                    font-size: 2em;
+                    font-weight: bold;
+                    margin: 10px 0;
+                }
+                .metric-value.good { color: #22c55e; }
+                .metric-value.warning { color: #f59e0b; }
+                .metric-value.error { color: #ef4444; }
+                .details {
+                    padding: 30px;
+                    border-top: 1px solid #e2e8f0;
+                }
+                .tool-section {
+                    margin-bottom: 30px;
+                    padding: 20px;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                }
+                .tool-section h3 {
+                    margin-top: 0;
+                    color: #374151;
+                    border-bottom: 2px solid #e2e8f0;
+                    padding-bottom: 10px;
+                }
+                .recommendations {
+                    background: #fef3c7;
+                    border: 1px solid #f59e0b;
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-top: 30px;
+                }
+                .recommendations h3 {
+                    color: #92400e;
+                    margin-top: 0;
+                }
+                .footer {
+                    background: #374151;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    font-size: 0.9em;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔍 Accessibility Scan Dashboard</h1>
+                    <p><strong>Target:</strong> ${{ inputs.target-url }}</p>
+                    <p><strong>Standards:</strong> ${{ inputs.standards }}</p>
+                    <p><strong>Scan Date:</strong> $(date)</p>
+                    <h2 class="status-$OVERALL_STATUS">Status: $(echo "$OVERALL_STATUS" | tr '[:lower:]' '[:upper:]')</h2>
+                </div>
+                
+                <div class="metrics">
+                    <div class="metric-card">
+                        <h3>🚨 Total Issues</h3>
+                        <div class="metric-value $([ "$TOTAL_ISSUES" -eq "0" ] && echo "good" || echo "error")">$TOTAL_ISSUES</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>⚡ Axe Violations</h3>
+                        <div class="metric-value $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.axe-violations }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>📝 Pa11y Issues</h3>
+                        <div class="metric-value $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.pa11y-issues }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>🎭 Playwright Violations</h3>
+                        <div class="metric-value $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.playwright-violations }}</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>💡 Lighthouse Score</h3>
+                        <div class="metric-value $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "good" || ([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 70" | bc -l)" -eq "1" ] && echo "warning" || echo "error"))">${AVERAGE_LIGHTHOUSE_SCORE}%</div>
+                        <small>Desktop: ${{ inputs.lighthouse-desktop-score }}% | Mobile: ${{ inputs.lighthouse-mobile-score }}%</small>
+                    </div>
+                </div>
+                
+                <div class="details">
+                    <h2>📊 Detailed Results by Tool</h2>
+                    
+                    <div class="tool-section">
+                        <h3>🔧 Axe-core (WCAG Compliance)</h3>
+                        <p><strong>Violations Found:</strong> ${{ inputs.axe-violations }}</p>
+                        <p>Axe-core tests for WCAG 2.1 compliance and finds specific accessibility violations that need to be fixed.</p>
+                        $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review axe-report.json for specific violations and fix them.</p>" || echo "<p>✅ <strong>Passed:</strong> No WCAG violations detected.</p>")
+                    </div>
+                    
+                    <div class="tool-section">
+                        <h3>📋 Pa11y (Content Analysis)</h3>
+                        <p><strong>Issues Found:</strong> ${{ inputs.pa11y-issues }}</p>
+                        <p>Pa11y analyzes page content for accessibility issues including missing alt text, improper headings, and color contrast problems.</p>
+                        $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review pa11y-report.html for detailed issue locations.</p>" || echo "<p>✅ <strong>Passed:</strong> No content issues detected.</p>")
+                    </div>
+                    
+                    <div class="tool-section">
+                        <h3>💡 Lighthouse (Performance & Accessibility)</h3>
+                        <p><strong>Desktop Score:</strong> ${{ inputs.lighthouse-desktop-score }}% | <strong>Mobile Score:</strong> ${{ inputs.lighthouse-mobile-score }}%</p>
+                        <p>Lighthouse provides overall accessibility scoring and identifies opportunities for improvement.</p>
+                        $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "<p>✅ <strong>Excellent:</strong> High accessibility score achieved.</p>" || echo "<p>⚠️ <strong>Needs Improvement:</strong> Review Lighthouse reports for optimization opportunities.</p>")
+                    </div>
+                    
+                    <div class="tool-section">
+                        <h3>🎭 Playwright (End-to-End Testing)</h3>
+                        <p><strong>Violations Found:</strong> ${{ inputs.playwright-violations }}</p>
+                        <p>Playwright runs comprehensive end-to-end accessibility tests including keyboard navigation and screen reader compatibility.</p>
+                        $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review Playwright test results for interaction and navigation issues.</p>" || echo "<p>✅ <strong>Passed:</strong> All end-to-end accessibility tests passed.</p>")
+                    </div>
+                    
+                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'RECOMMENDATIONS'
+                    <div class="recommendations">
+                        <h3>🎯 Recommended Actions</h3>
+                        <ol>
+                            <li><strong>Fix Critical Issues First:</strong> Start with axe-core violations as they represent WCAG compliance failures.</li>
+                            <li><strong>Review Content Quality:</strong> Address pa11y issues to improve overall accessibility experience.</li>
+                            <li><strong>Test Interactions:</strong> Resolve Playwright failures to ensure keyboard and screen reader compatibility.</li>
+                            <li><strong>Optimize Performance:</strong> Use Lighthouse recommendations to improve accessibility scores.</li>
+                            <li><strong>Re-scan After Fixes:</strong> Run this workflow again to verify improvements.</li>
+                        </ol>
+                        <p><strong>Priority Order:</strong> Axe violations → Lighthouse structural issues → Pa11y content issues → Playwright interaction issues</p>
+                    </div>
+        RECOMMENDATIONS
+        )
+                </div>
+                
+                <div class="footer">
+                    <p>Generated on $(date) | Workflow Run: ${{ inputs.workflow-run-number }} | Tools: ${{ inputs.scan-tools }}</p>
+                    <p>This dashboard aggregates results from multiple accessibility testing tools for comprehensive coverage.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        EOF
+        
+        echo "dashboard-path=$DASHBOARD_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Generated HTML dashboard: $DASHBOARD_PATH"
+
+    - name: Generate markdown summary
+      if: inputs.generate-summary == 'true'
+      shell: bash
+      run: |
+        SUMMARY_PATH="${{ inputs.report-dir }}/accessibility-summary.md"
+        
+        cat > "$SUMMARY_PATH" << EOF
+        # 🔍 Accessibility Scan Summary
+
+        **Target URL:** ${{ inputs.target-url }}  
+        **Standards:** ${{ inputs.standards }}  
+        **Scan Date:** $(date)  
+        **Status:** $([ "$OVERALL_STATUS" == "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+
+        ## 📊 Results Overview
+
+        | Tool | Issues/Score | Status |
+        |------|-------------|--------|
+        | 🔧 Axe-core | ${{ inputs.axe-violations }} violations | $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
+        | 📋 Pa11y | ${{ inputs.pa11y-issues }} issues | $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
+        | 💡 Lighthouse Desktop | ${{ inputs.lighthouse-desktop-score }}% | $([ "${{ inputs.lighthouse-desktop-score }}" -ge "90" ] && echo "✅ Excellent" || ([ "${{ inputs.lighthouse-desktop-score }}" -ge "70" ] && echo "⚠️ Good" || echo "❌ Needs Work")) |
+        | 💡 Lighthouse Mobile | ${{ inputs.lighthouse-mobile-score }}% | $([ "${{ inputs.lighthouse-mobile-score }}" -ge "90" ] && echo "✅ Excellent" || ([ "${{ inputs.lighthouse-mobile-score }}" -ge "70" ] && echo "⚠️ Good" || echo "❌ Needs Work")) |
+        | 🎭 Playwright | ${{ inputs.playwright-violations }} violations | $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "✅ Passed" || echo "❌ Failed") |
+
+        **Total Issues Found:** $TOTAL_ISSUES
+
+        $([ "$TOTAL_ISSUES" -eq "0" ] && cat << 'PASSED'
+        ## 🎉 Congratulations!
+
+        Your application passes all accessibility tests! This means:
+
+        - ✅ **WCAG 2.1 AA Compliance**: No critical violations found
+        - ✅ **Content Quality**: All images, headings, and forms are properly structured
+        - ✅ **Performance**: Accessibility features don't impact load times
+        - ✅ **User Experience**: Keyboard navigation and screen readers work correctly
+
+        ### Maintenance Recommendations
+
+        - Run accessibility scans regularly (weekly/monthly)
+        - Test with real users who use assistive technologies
+        - Keep accessibility in mind for new features
+        - Consider upgrading to WCAG 2.2 standards when ready
+        PASSED
+        )
+
+        $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'FAILED'
+        ## 🎯 Action Plan
+
+        ### Phase 1: Critical Fixes (High Priority)
+        $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "- **Fix ${{ inputs.axe-violations }} Axe violations**: These are WCAG compliance failures that block users with disabilities")
+        $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 70" | bc -l)" -eq "1" ] && echo "- **Improve Lighthouse scores**: Address structural accessibility issues")
+
+        ### Phase 2: Content Quality (Medium Priority)
+        $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "- **Resolve ${{ inputs.pa11y-issues }} Pa11y issues**: Fix content accessibility problems (alt text, headings, etc.)")
+
+        ### Phase 3: Interaction Testing (Medium Priority)  
+        $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "- **Fix ${{ inputs.playwright-violations }} Playwright issues**: Ensure keyboard navigation and screen reader compatibility")
+
+        ### Next Steps
+        1. Download the complete scan reports from the workflow artifacts
+        2. Start with the highest priority issues (Axe violations)
+        3. Use the detailed reports to find exact elements that need fixing
+        4. Re-run this scan after making changes to verify improvements
+        5. Aim for 0 violations and 90+ Lighthouse scores
+
+        ### Resources
+        - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+        - [React Accessibility Guide](https://react.dev/learn/accessibility)
+        - [MDN Accessibility](https://developer.mozilla.org/en-US/docs/Web/Accessibility)
+        FAILED
+        )
+
+        ## 📋 Report Files
+
+        The following detailed reports are available in the workflow artifacts:
+
+        - **axe-report.json**: Detailed WCAG violation information
+        - **pa11y-report.html**: Visual content accessibility report  
+        - **lighthouse-accessibility-desktop.json**: Desktop performance audit
+        - **lighthouse-accessibility-mobile.json**: Mobile performance audit
+        - **playwright-report/**: Interactive test results with screenshots
+        - **accessibility-dashboard.html**: This summary in visual format
+
+        ## 🔄 Workflow Information
+
+        - **Workflow Run:** ${{ inputs.workflow-run-number }}
+        - **Tools Used:** ${{ inputs.scan-tools }}
+        - **Generated:** $(date)
+
+        ---
+
+        *This report was automatically generated by the accessibility scanning workflow.*
+        EOF
+        
+        echo "summary-path=$SUMMARY_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Generated markdown summary: $SUMMARY_PATH"
+
+    - name: Generate PR comment format
+      if: inputs.generate-pr-comment == 'true'
+      shell: bash
+      run: |
+        PR_COMMENT_PATH="${{ inputs.report-dir }}/pr-comment.md"
+        
+        cat > "$PR_COMMENT_PATH" << EOF
+        ## 🔍 Accessibility Scan Results
+
+        $([ "$OVERALL_STATUS" == "passed" ] && echo "### ✅ All accessibility tests passed!" || echo "### ❌ Accessibility issues found")
+
+        **Scanned:** ${{ inputs.target-url }}  
+        **Standards:** ${{ inputs.standards }}
+
+        ### 📊 Summary
+
+        | Tool | Result | Details |
+        |------|--------|---------|
+        | 🔧 Axe-core | $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "✅ ${{ inputs.axe-violations }} violations" || echo "❌ ${{ inputs.axe-violations }} violations") | WCAG 2.1 compliance |
+        | 📋 Pa11y | $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "✅ ${{ inputs.pa11y-issues }} issues" || echo "❌ ${{ inputs.pa11y-issues }} issues") | Content analysis |
+        | 💡 Lighthouse | $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "✅" || echo "⚠️") ${AVERAGE_LIGHTHOUSE_SCORE}% | Performance score |
+        | 🎭 Playwright | $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "✅ ${{ inputs.playwright-violations }} violations" || echo "❌ ${{ inputs.playwright-violations }} violations") | End-to-end tests |
+
+        $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'ISSUES_FOUND'
+        ### 🎯 Priority Actions Required
+
+        1. **Critical**: Fix Axe-core violations for WCAG compliance
+        2. **High**: Address Lighthouse structural issues  
+        3. **Medium**: Resolve Pa11y content problems
+        4. **Medium**: Fix Playwright interaction issues
+
+        💡 **Tip**: Start with Axe violations as they have the highest impact on users with disabilities.
+        ISSUES_FOUND
+        )
+
+        ### 📁 Detailed Reports
+
+        Download the complete accessibility scan results from the [workflow artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.workflow-run-id }}) for detailed analysis.
+
+        $([ "$TOTAL_ISSUES" -eq "0" ] && echo "🎉 **Great work!** Your changes maintain excellent accessibility standards." || echo "🔧 **Next steps**: Review the detailed reports and implement the recommended fixes.")
+
+        <details>
+        <summary>📋 View scan metadata</summary>
+
+        - **Workflow Run:** #${{ inputs.workflow-run-number }}
+        - **Tools Used:** ${{ inputs.scan-tools }}
+        - **Scan Time:** $(date)
+        - **Total Issues:** $TOTAL_ISSUES
+
+        </details>
+        EOF
+        
+        echo "pr-comment-path=$PR_COMMENT_PATH" >> $GITHUB_OUTPUT
+        echo "✅ Generated PR comment: $PR_COMMENT_PATH"
+
+    - name: Create issue summary for tracking
+      shell: bash
+      run: |
+        ISSUE_SUMMARY_PATH="${{ inputs.report-dir }}/issue-summary.json"
+        
+        cat > "$ISSUE_SUMMARY_PATH" << EOF
+        {
+          "total_issues": $TOTAL_ISSUES,
+          "breakdown": {
+            "axe_violations": ${{ inputs.axe-violations }},
+            "pa11y_issues": ${{ inputs.pa11y-issues }},
+            "playwright_violations": ${{ inputs.playwright-violations }},
+            "lighthouse_desktop_score": ${{ inputs.lighthouse-desktop-score }},
+            "lighthouse_mobile_score": ${{ inputs.lighthouse-mobile-score }},
+            "average_lighthouse_score": $AVERAGE_LIGHTHOUSE_SCORE
+          },
+          "scan_metadata": {
+            "target_url": "${{ inputs.target-url }}",
+            "standards": "${{ inputs.standards }}",
+            "tools_used": "${{ inputs.scan-tools }}",
+            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ inputs.workflow-run-id }}",
+            "workflow_run_number": "${{ inputs.workflow-run-number }}"
+          },
+          "status": "$OVERALL_STATUS",
+          "priority_actions": [
+            $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "\"Fix ${{ inputs.axe-violations }} critical WCAG violations\",")
+            $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE < 90" | bc -l)" -eq "1" ] && echo "\"Improve Lighthouse accessibility score to 90+\",")
+            $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "\"Resolve ${{ inputs.pa11y-issues }} content accessibility issues\",")
+            $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "\"Fix ${{ inputs.playwright-violations }} interaction/navigation issues\",")
+            "\"Re-run accessibility scan to verify fixes\""
+          ]
+        }
+        EOF
+        
+        echo "✅ Generated issue summary: $ISSUE_SUMMARY_PATH"
+        
+        echo "=== Final Report Generation Summary ==="
+        echo "Total Issues: $TOTAL_ISSUES"
+        echo "Overall Status: $OVERALL_STATUS"
+        echo "Reports Generated:"
+        ls -la ${{ inputs.report-dir }}/ | grep -E '\.(html|md|json)$' || echo "No reports found"

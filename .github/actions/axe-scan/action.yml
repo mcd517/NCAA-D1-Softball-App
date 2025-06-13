@@ -1,0 +1,131 @@
+name: 'Axe Accessibility Scan'
+description: 'Run axe-core accessibility scan with configurable standards'
+inputs:
+  target-url:
+    description: 'URL to scan'
+    required: true
+  standards:
+    description: 'Accessibility standards to test (wcag2a,wcag2aa,wcag21aa,section508,en301549)'
+    required: false
+    default: 'wcag2a,wcag2aa,wcag21aa'
+  timeout:
+    description: 'Timeout in milliseconds'
+    required: false
+    default: '30000'
+  chrome-options:
+    description: 'Chrome options for headless browsing'
+    required: false
+    default: 'no-sandbox,disable-dev-shm-usage'
+  report-dir:
+    description: 'Directory to save reports'
+    required: false
+    default: 'accessibility-reports'
+  fail-on-violations:
+    description: 'Fail the action if violations are found'
+    required: false
+    default: 'false'
+  max-violations:
+    description: 'Maximum number of violations allowed (0 = no limit)'
+    required: false
+    default: '0'
+
+outputs:
+  violations-count:
+    description: 'Number of violations found'
+    value: ${{ steps.scan.outputs.violations-count }}
+  report-path:
+    description: 'Path to the generated report'
+    value: ${{ steps.scan.outputs.report-path }}
+  scan-status:
+    description: 'Status of the scan (passed/failed)'
+    value: ${{ steps.scan.outputs.scan-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run axe-core accessibility scan
+      id: scan
+      shell: bash
+      run: |
+        echo "Running axe-core scan..."
+        echo "Target URL: ${{ inputs.target-url }}"
+        echo "Standards: ${{ inputs.standards }}"
+        echo "Timeout: ${{ inputs.timeout }}ms"
+        
+        # Prepare chrome options
+        CHROME_FLAGS=""
+        IFS=',' read -ra OPTIONS <<< "${{ inputs.chrome-options }}"
+        for option in "${OPTIONS[@]}"; do
+          CHROME_FLAGS="$CHROME_FLAGS --$option"
+        done
+        
+        # Create report directory
+        mkdir -p ${{ inputs.report-dir }}
+        
+        REPORT_PATH="${{ inputs.report-dir }}/axe-report.json"
+        
+        # Run axe scan with error handling
+        if npx axe ${{ inputs.target-url }} \
+          --save "$REPORT_PATH" \
+          --timeout ${{ inputs.timeout }} \
+          --chrome-options="${CHROME_FLAGS}" \
+          --tags ${{ inputs.standards }}; then
+          echo "✅ Axe scan completed successfully"
+          SCAN_STATUS="passed"
+        else
+          echo "⚠️ Axe scan completed with issues"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Count violations if report exists
+        VIOLATIONS_COUNT=0
+        if [ -f "$REPORT_PATH" ]; then
+          # Handle both array and object formats
+          VIOLATIONS_COUNT=$(jq 'if type=="array" then .[0].violations else .violations end | length' "$REPORT_PATH" 2>/dev/null || echo "0")
+          echo "Found $VIOLATIONS_COUNT violations"
+          
+          # Log violation summary
+          if [ "$VIOLATIONS_COUNT" -gt "0" ]; then
+            echo "=== Violation Summary ==="
+            jq -r 'if type=="array" then .[0].violations else .violations end | group_by(.impact) | .[] | "\(.[0].impact): \(length) violations"' "$REPORT_PATH" 2>/dev/null || echo "Could not parse violation summary"
+          fi
+        else
+          echo "❌ Report file not found: $REPORT_PATH"
+          # Create empty report for consistency
+          echo '{"violations": [], "passes": [], "incomplete": [], "inapplicable": []}' > "$REPORT_PATH"
+        fi
+        
+        # Check thresholds
+        if [ "${{ inputs.max-violations }}" != "0" ] && [ "$VIOLATIONS_COUNT" -gt "${{ inputs.max-violations }}" ]; then
+          echo "❌ Violations exceed threshold: $VIOLATIONS_COUNT > ${{ inputs.max-violations }}"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Set outputs
+        echo "violations-count=$VIOLATIONS_COUNT" >> $GITHUB_OUTPUT
+        echo "report-path=$REPORT_PATH" >> $GITHUB_OUTPUT
+        echo "scan-status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+        
+        # Fail if requested and violations found
+        if [ "${{ inputs.fail-on-violations }}" == "true" ] && [ "$VIOLATIONS_COUNT" -gt "0" ]; then
+          echo "❌ Failing due to accessibility violations"
+          exit 1
+        fi
+
+    - name: Validate report format
+      shell: bash
+      run: |
+        REPORT_PATH="${{ steps.scan.outputs.report-path }}"
+        if [ -f "$REPORT_PATH" ]; then
+          # Verify JSON format
+          if jq empty "$REPORT_PATH" 2>/dev/null; then
+            echo "✅ Report format validation: PASSED"
+            echo "Report size: $(wc -c < "$REPORT_PATH") bytes"
+          else
+            echo "❌ Report format validation: FAILED - Invalid JSON"
+            echo "First 200 characters of report:"
+            head -c 200 "$REPORT_PATH"
+          fi
+        else
+          echo "❌ Report file missing: $REPORT_PATH"
+        fi

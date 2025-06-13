@@ -93,7 +93,15 @@ The server exposes the following endpoints:
 
 ## Accessibility
 
-This application includes comprehensive automated accessibility evaluation to ensure WCAG 2.1 AA compliance. The scans run every Monday and generate detailed reports available in GitHub Actions artifacts. The evaluation uses multiple industry-standard tools including axe-core, pa11y, Lighthouse, and Playwright for complete coverage. See [Accessibility Documentation](.github/ACCESSIBILITY.md) for more details.
+This application includes enterprise-grade automated accessibility evaluation to ensure WCAG 2.1 AA compliance. The system features:
+
+- **🔧 Enterprise Scanner**: Modular, configurable accessibility testing with parallel execution
+- **🎯 Quality Gates**: Configurable thresholds with pass/fail criteria
+- **📊 Comprehensive Reporting**: HTML dashboards, PR comments, and webhook notifications
+- **⚙️ Multi-Standard Support**: WCAG 2.1 A/AA/AAA, Section 508, EN 301 549
+- **🚀 Parallel Execution**: Matrix strategy for faster scanning with multiple tools
+
+The scans run automatically on PRs and weekly schedules, using industry-standard tools including axe-core, pa11y, Lighthouse, and Playwright. See [Enterprise Accessibility Documentation](.github/ENTERPRISE_ACCESSIBILITY.md) for detailed setup and configuration.
 
 ## Contributing
 

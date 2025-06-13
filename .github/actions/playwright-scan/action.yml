@@ -1,0 +1,297 @@
+name: 'Playwright Accessibility Scan'
+description: 'Run Playwright accessibility tests with axe-core integration'
+inputs:
+  target-url:
+    description: 'Base URL to test'
+    required: true
+  test-file:
+    description: 'Path to Playwright test file'
+    required: false
+    default: 'tests/accessibility/accessibility.spec.js'
+  browsers:
+    description: 'Browsers to test (chromium,firefox,webkit)'
+    required: false
+    default: 'chromium'
+  workers:
+    description: 'Number of parallel workers'
+    required: false
+    default: '1'
+  retries:
+    description: 'Number of retries on failure'
+    required: false
+    default: '2'
+  timeout:
+    description: 'Test timeout in milliseconds'
+    required: false
+    default: '30000'
+  report-dir:
+    description: 'Directory to save reports'
+    required: false
+    default: 'accessibility-reports'
+  fail-on-violations:
+    description: 'Fail the action if violations are found'
+    required: false
+    default: 'false'
+  max-violations:
+    description: 'Maximum number of violations allowed (0 = no limit)'
+    required: false
+    default: '0'
+
+outputs:
+  violations-count:
+    description: 'Number of violations found'
+    value: ${{ steps.test.outputs.violations-count }}
+  tests-passed:
+    description: 'Number of tests that passed'
+    value: ${{ steps.test.outputs.tests-passed }}
+  tests-failed:
+    description: 'Number of tests that failed'
+    value: ${{ steps.test.outputs.tests-failed }}
+  html-report-path:
+    description: 'Path to HTML report'
+    value: ${{ steps.test.outputs.html-report-path }}
+  json-report-path:
+    description: 'Path to JSON report'
+    value: ${{ steps.test.outputs.json-report-path }}
+  scan-status:
+    description: 'Status of the scan (passed/failed)'
+    value: ${{ steps.test.outputs.scan-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure Playwright
+      shell: bash
+      run: |
+        echo "Configuring Playwright..."
+        
+        # Set environment variables for the test
+        echo "TARGET_URL=${{ inputs.target-url }}" >> $GITHUB_ENV
+        
+        # Create report directory
+        mkdir -p ${{ inputs.report-dir }}
+        
+        # Update playwright config if needed to set proper report directory
+        if [ -f "playwright.config.js" ]; then
+          echo "Using existing playwright.config.js"
+        else
+          echo "Creating basic playwright.config.js"
+          cat > playwright.config.js << 'EOF'
+        import { defineConfig, devices } from '@playwright/test';
+
+        export default defineConfig({
+          testDir: './tests/accessibility',
+          fullyParallel: true,
+          forbidOnly: !!process.env.CI,
+          retries: process.env.CI ? 2 : 0,
+          workers: process.env.CI ? 1 : undefined,
+          reporter: [
+            ['html', { outputFolder: 'accessibility-reports/playwright-report' }],
+            ['json', { outputFile: 'accessibility-reports/playwright-results.json' }],
+            ['junit', { outputFile: 'accessibility-reports/playwright-results.xml' }]
+          ],
+          use: {
+            baseURL: process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/',
+            trace: 'on-first-retry',
+            screenshot: 'only-on-failure',
+            video: 'retain-on-failure',
+          },
+          projects: [
+            {
+              name: 'chromium',
+              use: { ...devices['Desktop Chrome'] },
+            }
+          ],
+        });
+        EOF
+        fi
+
+    - name: Run Playwright accessibility tests
+      id: test
+      shell: bash
+      run: |
+        echo "Running Playwright accessibility tests..."
+        echo "Target URL: ${{ inputs.target-url }}"
+        echo "Test file: ${{ inputs.test-file }}"
+        echo "Browsers: ${{ inputs.browsers }}"
+        
+        # Set Playwright configuration
+        export PWTEST_OUTPUT_DIR="${{ inputs.report-dir }}"
+        
+        SCAN_STATUS="passed"
+        VIOLATIONS_COUNT=0
+        TESTS_PASSED=0
+        TESTS_FAILED=0
+        
+        # Check if test file exists
+        if [ ! -f "${{ inputs.test-file }}" ]; then
+          echo "❌ Test file not found: ${{ inputs.test-file }}"
+          echo "Creating basic accessibility test..."
+          
+          mkdir -p "$(dirname "${{ inputs.test-file }}")"
+          cat > "${{ inputs.test-file }}" << 'EOF'
+        import { test, expect } from '@playwright/test';
+        import AxeBuilder from '@axe-core/playwright';
+
+        test.describe('Accessibility Tests', () => {
+          const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
+          
+          test.beforeEach(async ({ page }) => {
+            await page.goto(targetUrl);
+            await page.waitForLoadState('networkidle');
+          });
+
+          test('should not have accessibility violations', async ({ page }) => {
+            const accessibilityScanResults = await new AxeBuilder({ page })
+              .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+              .analyze();
+
+            // Log violations for reporting
+            if (accessibilityScanResults.violations.length > 0) {
+              console.log('Accessibility violations found:');
+              accessibilityScanResults.violations.forEach((violation, index) => {
+                console.log(`${index + 1}. ${violation.id}: ${violation.description}`);
+                console.log(`   Impact: ${violation.impact}`);
+                console.log(`   Elements: ${violation.nodes.length}`);
+              });
+              
+              // Attach detailed report
+              await test.info().attach('axe-violations.json', {
+                body: JSON.stringify(accessibilityScanResults, null, 2),
+                contentType: 'application/json'
+              });
+            }
+
+            // Assert no violations (this will fail the test if violations exist)
+            expect(accessibilityScanResults.violations).toEqual([]);
+          });
+
+          test('should have proper page structure', async ({ page }) => {
+            // Check for main landmark
+            const mainElements = await page.locator('main, [role="main"]').count();
+            expect(mainElements).toBeGreaterThan(0);
+
+            // Check for headings
+            const headings = await page.locator('h1, h2, h3, h4, h5, h6').count();
+            expect(headings).toBeGreaterThan(0);
+
+            // Check page title
+            const title = await page.title();
+            expect(title).toBeTruthy();
+            expect(title.trim()).not.toBe('');
+          });
+        });
+        EOF
+          echo "✅ Created basic accessibility test file"
+        fi
+        
+        # Parse browsers and set up projects
+        BROWSER_CONFIG=""
+        IFS=',' read -ra BROWSERS <<< "${{ inputs.browsers }}"
+        for browser in "${BROWSERS[@]}"; do
+          BROWSER_CONFIG="$BROWSER_CONFIG --project=$browser"
+        done
+        
+        # Run Playwright tests
+        if npx playwright test ${{ inputs.test-file }} \
+          $BROWSER_CONFIG \
+          --workers=${{ inputs.workers }} \
+          --retries=${{ inputs.retries }} \
+          --timeout=${{ inputs.timeout }} \
+          --reporter=html,json,junit; then
+          echo "✅ Playwright tests completed successfully"
+        else
+          echo "⚠️ Some Playwright tests failed"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Parse results if JSON report exists
+        JSON_REPORT="${{ inputs.report-dir }}/playwright-results.json"
+        HTML_REPORT="${{ inputs.report-dir }}/playwright-report"
+        
+        if [ -f "$JSON_REPORT" ]; then
+          echo "Parsing test results..."
+          
+          # Count passed/failed tests
+          TESTS_PASSED=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "passed")] | length' "$JSON_REPORT" 2>/dev/null || echo "0")
+          TESTS_FAILED=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "failed")] | length' "$JSON_REPORT" 2>/dev/null || echo "0")
+          
+          echo "Tests passed: $TESTS_PASSED"
+          echo "Tests failed: $TESTS_FAILED"
+          
+          # Try to extract violation count from test artifacts
+          # This is approximate since it depends on how violations are logged
+          if [ "$TESTS_FAILED" -gt "0" ]; then
+            VIOLATIONS_COUNT=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "failed") | .results[0].attachments[] | select(.name | contains("violation")) | .body] | length' "$JSON_REPORT" 2>/dev/null || echo "$TESTS_FAILED")
+          fi
+        else
+          echo "⚠️ JSON report not found at $JSON_REPORT"
+          # Fallback: assume failure if no report
+          if [ "$SCAN_STATUS" == "failed" ]; then
+            TESTS_FAILED=1
+            VIOLATIONS_COUNT=1
+          else
+            TESTS_PASSED=1
+          fi
+        fi
+        
+        # Check thresholds
+        if [ "${{ inputs.max-violations }}" != "0" ] && [ "$VIOLATIONS_COUNT" -gt "${{ inputs.max-violations }}" ]; then
+          echo "❌ Violations exceed threshold: $VIOLATIONS_COUNT > ${{ inputs.max-violations }}"
+          SCAN_STATUS="failed"
+        fi
+        
+        echo "=== Playwright Test Summary ==="
+        echo "Status: $SCAN_STATUS"
+        echo "Tests Passed: $TESTS_PASSED"
+        echo "Tests Failed: $TESTS_FAILED"
+        echo "Violations: $VIOLATIONS_COUNT"
+        
+        # Set outputs
+        echo "violations-count=$VIOLATIONS_COUNT" >> $GITHUB_OUTPUT
+        echo "tests-passed=$TESTS_PASSED" >> $GITHUB_OUTPUT
+        echo "tests-failed=$TESTS_FAILED" >> $GITHUB_OUTPUT
+        echo "html-report-path=$HTML_REPORT" >> $GITHUB_OUTPUT
+        echo "json-report-path=$JSON_REPORT" >> $GITHUB_OUTPUT
+        echo "scan-status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+        
+        # Fail if requested and violations found
+        if [ "${{ inputs.fail-on-violations }}" == "true" ] && [ "$VIOLATIONS_COUNT" -gt "0" ]; then
+          echo "❌ Failing due to accessibility violations"
+          exit 1
+        fi
+
+    - name: Validate test reports
+      shell: bash
+      run: |
+        echo "=== Report Validation ==="
+        
+        JSON_REPORT="${{ steps.test.outputs.json-report-path }}"
+        HTML_REPORT="${{ steps.test.outputs.html-report-path }}"
+        
+        if [ -f "$JSON_REPORT" ]; then
+          if jq empty "$JSON_REPORT" 2>/dev/null; then
+            echo "✅ JSON Report: Valid format ($(wc -c < "$JSON_REPORT") bytes)"
+          else
+            echo "❌ JSON Report: Invalid format"
+          fi
+        else
+          echo "⚠️ JSON Report: Not found"
+        fi
+        
+        if [ -d "$HTML_REPORT" ]; then
+          echo "✅ HTML Report: Directory exists ($(du -sh "$HTML_REPORT" | cut -f1))"
+          if [ -f "$HTML_REPORT/index.html" ]; then
+            echo "✅ HTML Report: Index file present ($(wc -c < "$HTML_REPORT/index.html") bytes)"
+          else
+            echo "⚠️ HTML Report: Index file missing"
+          fi
+        else
+          echo "⚠️ HTML Report: Directory not found"
+        fi
+        
+        # List any test artifacts
+        if [ -d "${{ inputs.report-dir }}" ]; then
+          echo "📁 Report directory contents:"
+          ls -la "${{ inputs.report-dir }}/"
+        fi

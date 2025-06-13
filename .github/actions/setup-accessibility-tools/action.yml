@@ -1,0 +1,138 @@
+name: 'Setup Accessibility Tools'
+description: 'Install and configure accessibility testing tools with caching'
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '20'
+  tools:
+    description: 'Comma-separated list of tools to install (pa11y,axe,lighthouse,puppeteer)'
+    required: false
+    default: 'pa11y,axe,lighthouse,puppeteer'
+  playwright-browsers:
+    description: 'Install Playwright browsers'
+    required: false
+    default: 'true'
+  report-dir:
+    description: 'Directory for accessibility reports'
+    required: false
+    default: 'accessibility-reports'
+
+outputs:
+  tools-cache-hit:
+    description: 'Whether tools were restored from cache'
+    value: ${{ steps.cache-tools.outputs.cache-hit }}
+  report-dir:
+    description: 'Path to reports directory'
+    value: ${{ steps.setup-dirs.outputs.report-dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install project dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Cache accessibility tools
+      id: cache-tools
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          ~/.cache/puppeteer
+          ~/.cache/ms-playwright
+        key: accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-
+          accessibility-tools-${{ runner.os }}-
+
+    - name: Install accessibility testing tools
+      shell: bash
+      run: |
+        echo "Installing accessibility tools: ${{ inputs.tools }}"
+        
+        # Parse tools list and install accordingly
+        IFS=',' read -ra TOOLS <<< "${{ inputs.tools }}"
+        
+        for tool in "${TOOLS[@]}"; do
+          case "$tool" in
+            "pa11y")
+              echo "Installing pa11y..."
+              npm install -g pa11y || echo "pa11y installation failed, continuing..."
+              ;;
+            "axe")
+              echo "Installing axe-core CLI..."
+              npm install -g @axe-core/cli || echo "axe-core installation failed, continuing..."
+              ;;
+            "lighthouse")
+              echo "Installing Lighthouse..."
+              npm install -g lighthouse || echo "Lighthouse installation failed, continuing..."
+              ;;
+            "puppeteer")
+              echo "Installing Puppeteer..."
+              npm install puppeteer --save-dev || echo "Puppeteer installation failed, continuing..."
+              ;;
+            *)
+              echo "Unknown tool: $tool"
+              ;;
+          esac
+        done
+
+    - name: Install Playwright browsers
+      shell: bash
+      if: inputs.playwright-browsers == 'true'
+      run: |
+        echo "Installing Playwright browsers..."
+        npx playwright install chromium --with-deps || echo "Playwright browser installation failed, continuing with other tools"
+
+    - name: Setup report directories
+      id: setup-dirs
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.report-dir }}
+        echo "report-dir=${{ inputs.report-dir }}" >> $GITHUB_OUTPUT
+        echo "Created report directory: ${{ inputs.report-dir }}"
+
+    - name: Verify tool installations
+      shell: bash
+      run: |
+        echo "=== Tool Installation Verification ==="
+        
+        # Check each tool
+        if command -v pa11y &> /dev/null; then
+          echo "✅ pa11y: $(pa11y --version)"
+        else
+          echo "❌ pa11y: not installed"
+        fi
+        
+        if command -v axe &> /dev/null; then
+          echo "✅ axe-core: $(axe --version)"
+        else
+          echo "❌ axe-core: not installed"
+        fi
+        
+        if command -v lighthouse &> /dev/null; then
+          echo "✅ lighthouse: $(lighthouse --version)"
+        else
+          echo "❌ lighthouse: not installed"
+        fi
+        
+        if npm list puppeteer &> /dev/null; then
+          echo "✅ puppeteer: installed"
+        else
+          echo "❌ puppeteer: not installed"
+        fi
+        
+        if npx playwright --version &> /dev/null; then
+          echo "✅ playwright: $(npx playwright --version)"
+        else
+          echo "❌ playwright: not installed"
+        fi
+        
+        echo "=== Setup Complete ==="

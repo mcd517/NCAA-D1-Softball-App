@@ -1,0 +1,480 @@
+name: 'Puppeteer Accessibility Scan'
+description: 'Custom Puppeteer-based accessibility tests for keyboard navigation and screen reader compatibility'
+inputs:
+  target-url:
+    description: 'URL to test'
+    required: true
+  timeout:
+    description: 'Timeout in milliseconds'
+    required: false
+    default: '30000'
+  chrome-options:
+    description: 'Chrome launch options'
+    required: false
+    default: 'no-sandbox,disable-dev-shm-usage,headless'
+  report-dir:
+    description: 'Directory to save reports'
+    required: false
+    default: 'accessibility-reports'
+  test-types:
+    description: 'Types of tests to run (keyboard,screenreader,focus,landmarks)'
+    required: false
+    default: 'keyboard,screenreader,focus,landmarks'
+  fail-on-issues:
+    description: 'Fail the action if issues are found'
+    required: false
+    default: 'false'
+
+outputs:
+  issues-count:
+    description: 'Number of issues found'
+    value: ${{ steps.test.outputs.issues-count }}
+  keyboard-issues:
+    description: 'Number of keyboard navigation issues'
+    value: ${{ steps.test.outputs.keyboard-issues }}
+  screenreader-issues:
+    description: 'Number of screen reader issues'
+    value: ${{ steps.test.outputs.screenreader-issues }}
+  focus-issues:
+    description: 'Number of focus management issues'
+    value: ${{ steps.test.outputs.focus-issues }}
+  landmarks-issues:
+    description: 'Number of landmark issues'
+    value: ${{ steps.test.outputs.landmarks-issues }}
+  report-path:
+    description: 'Path to the generated report'
+    value: ${{ steps.test.outputs.report-path }}
+  scan-status:
+    description: 'Status of the scan (passed/failed)'
+    value: ${{ steps.test.outputs.scan-status }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create Puppeteer test script
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.report-dir }}
+        
+        # Create comprehensive Puppeteer accessibility test
+        cat > puppeteer-accessibility-test.js << 'EOF'
+        const puppeteer = require('puppeteer');
+        const fs = require('fs');
+
+        async function runAccessibilityTests() {
+          const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--${{ inputs.chrome-options }}'.split(',').map(opt => `--${opt}`).join(', --')]
+          });
+          
+          const page = await browser.newPage();
+          const allIssues = [];
+          const issuesByType = {
+            keyboard: [],
+            screenreader: [],
+            focus: [],
+            landmarks: []
+          };
+          
+          try {
+            console.log(`Testing: ${{ inputs.target-url }}`);
+            await page.goto('${{ inputs.target-url }}', { 
+              waitUntil: 'networkidle0', 
+              timeout: ${{ inputs.timeout }}
+            });
+            
+            const testTypes = '${{ inputs.test-types }}'.split(',');
+            
+            // Keyboard Navigation Tests
+            if (testTypes.includes('keyboard')) {
+              console.log('Running keyboard navigation tests...');
+              
+              // Test focusable elements
+              const focusableElements = await page.$$eval(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+                elements => elements.map(el => ({
+                  tagName: el.tagName,
+                  id: el.id,
+                  className: el.className,
+                  textContent: el.textContent?.trim().substring(0, 50) || '',
+                  hasTabIndex: el.hasAttribute('tabindex'),
+                  tabIndex: el.tabIndex
+                }))
+              );
+              
+              console.log(`Found ${focusableElements.length} focusable elements`);
+              
+              // Test tab navigation
+              let previousElement = null;
+              const maxElementsToTest = Math.min(focusableElements.length, 20);
+              
+              for (let i = 0; i < maxElementsToTest; i++) {
+                await page.keyboard.press('Tab');
+                
+                const currentElement = await page.evaluate(() => {
+                  const el = document.activeElement;
+                  return el ? {
+                    tagName: el.tagName,
+                    id: el.id,
+                    className: el.className,
+                    textContent: el.textContent?.trim().substring(0, 30) || ''
+                  } : null;
+                });
+                
+                if (!currentElement) {
+                  issuesByType.keyboard.push({
+                    type: 'keyboard-navigation',
+                    severity: 'moderate',
+                    message: `Tab key did not focus any element at step ${i + 1}`,
+                    context: `Previous element: ${JSON.stringify(previousElement)}`
+                  });
+                }
+                
+                previousElement = currentElement;
+              }
+              
+              // Test Enter and Space key activation on buttons
+              const buttons = await page.$$('button');
+              if (buttons.length > 0) {
+                await buttons[0].focus();
+                
+                const enterActivation = await page.evaluate(() => {
+                  return new Promise(resolve => {
+                    const btn = document.activeElement;
+                    if (!btn || btn.tagName !== 'BUTTON') {
+                      resolve(false);
+                      return;
+                    }
+                    
+                    let activated = false;
+                    const clickHandler = () => { activated = true; };
+                    btn.addEventListener('click', clickHandler, { once: true });
+                    
+                    const enterEvent = new KeyboardEvent('keydown', {
+                      key: 'Enter',
+                      code: 'Enter',
+                      keyCode: 13,
+                      bubbles: true,
+                      cancelable: true
+                    });
+                    
+                    btn.dispatchEvent(enterEvent);
+                    
+                    setTimeout(() => {
+                      btn.removeEventListener('click', clickHandler);
+                      resolve(activated);
+                    }, 100);
+                  });
+                });
+                
+                if (!enterActivation) {
+                  issuesByType.keyboard.push({
+                    type: 'keyboard-activation',
+                    severity: 'serious',
+                    message: 'Button does not respond to Enter key activation',
+                    context: 'First button on page'
+                  });
+                }
+              }
+            }
+            
+            // Screen Reader Compatibility Tests
+            if (testTypes.includes('screenreader')) {
+              console.log('Running screen reader compatibility tests...');
+              
+              // Test for page title
+              const pageTitle = await page.title();
+              if (!pageTitle || pageTitle.trim() === '') {
+                issuesByType.screenreader.push({
+                  type: 'page-structure',
+                  severity: 'serious',
+                  message: 'Page missing descriptive title',
+                  context: 'Document title'
+                });
+              }
+              
+              // Test for language attribute
+              const langAttribute = await page.$eval('html', el => el.getAttribute('lang')).catch(() => null);
+              if (!langAttribute) {
+                issuesByType.screenreader.push({
+                  type: 'page-structure',
+                  severity: 'moderate',
+                  message: 'HTML element missing lang attribute',
+                  context: 'Root HTML element'
+                });
+              }
+              
+              // Test heading structure
+              const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => 
+                headings.map(h => ({
+                  level: parseInt(h.tagName[1]),
+                  text: h.textContent?.trim().substring(0, 50) || '',
+                  id: h.id
+                }))
+              );
+              
+              if (headings.length === 0) {
+                issuesByType.screenreader.push({
+                  type: 'heading-structure',
+                  severity: 'serious',
+                  message: 'No heading structure found for screen reader navigation',
+                  context: 'Document structure'
+                });
+              } else {
+                // Check heading hierarchy
+                let previousLevel = 0;
+                for (const heading of headings) {
+                  if (heading.level > previousLevel + 1) {
+                    issuesByType.screenreader.push({
+                      type: 'heading-structure',
+                      severity: 'moderate',
+                      message: `Heading hierarchy skip detected (h${previousLevel} to h${heading.level})`,
+                      context: `Heading: "${heading.text}"`
+                    });
+                    break;
+                  }
+                  previousLevel = heading.level;
+                }
+              }
+              
+              // Test for alt text on images
+              const imagesWithoutAlt = await page.$$eval('img', images => 
+                images.filter(img => !img.alt || img.alt.trim() === '').length
+              );
+              
+              if (imagesWithoutAlt > 0) {
+                issuesByType.screenreader.push({
+                  type: 'image-accessibility',
+                  severity: 'moderate',
+                  message: `${imagesWithoutAlt} images missing alt text`,
+                  context: 'Image elements'
+                });
+              }
+            }
+            
+            // Focus Management Tests
+            if (testTypes.includes('focus')) {
+              console.log('Running focus management tests...');
+              
+              // Test focus indicators
+              const elementsWithoutFocusIndicator = await page.evaluate(() => {
+                const focusableElements = document.querySelectorAll(
+                  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                
+                let count = 0;
+                focusableElements.forEach(el => {
+                  el.focus();
+                  const computedStyle = window.getComputedStyle(el, ':focus');
+                  const hasOutline = computedStyle.outline !== 'none' && 
+                                   computedStyle.outlineWidth !== '0px';
+                  const hasBoxShadow = computedStyle.boxShadow !== 'none';
+                  
+                  if (!hasOutline && !hasBoxShadow) {
+                    count++;
+                  }
+                });
+                
+                return count;
+              });
+              
+              if (elementsWithoutFocusIndicator > 0) {
+                issuesByType.focus.push({
+                  type: 'focus-indicators',
+                  severity: 'serious',
+                  message: `${elementsWithoutFocusIndicator} focusable elements lack visible focus indicators`,
+                  context: 'Interactive elements'
+                });
+              }
+            }
+            
+            // Landmark Tests
+            if (testTypes.includes('landmarks')) {
+              console.log('Running landmark tests...');
+              
+              // Test for main landmark
+              const mainLandmarks = await page.$$eval(
+                '[role="main"], main',
+                elements => elements.length
+              );
+              
+              if (mainLandmarks === 0) {
+                issuesByType.landmarks.push({
+                  type: 'landmarks',
+                  severity: 'serious',
+                  message: 'No main landmark found for screen reader navigation',
+                  context: 'Page structure'
+                });
+              }
+              
+              // Test for navigation landmarks
+              const navLandmarks = await page.$$eval(
+                '[role="navigation"], nav',
+                elements => elements.length
+              );
+              
+              // Test for banner/header
+              const bannerLandmarks = await page.$$eval(
+                '[role="banner"], header',
+                elements => elements.length
+              );
+              
+              // Test for contentinfo/footer
+              const contentinfoLandmarks = await page.$$eval(
+                '[role="contentinfo"], footer',
+                elements => elements.length
+              );
+              
+              const landmarkSummary = {
+                main: mainLandmarks,
+                navigation: navLandmarks,
+                banner: bannerLandmarks,
+                contentinfo: contentinfoLandmarks
+              };
+              
+              console.log('Landmark summary:', landmarkSummary);
+            }
+            
+            // Aggregate all issues
+            Object.values(issuesByType).forEach(typeIssues => {
+              allIssues.push(...typeIssues);
+            });
+            
+            console.log(`\nFound ${allIssues.length} total accessibility issues:`);
+            console.log(`- Keyboard: ${issuesByType.keyboard.length}`);
+            console.log(`- Screen Reader: ${issuesByType.screenreader.length}`);
+            console.log(`- Focus: ${issuesByType.focus.length}`);
+            console.log(`- Landmarks: ${issuesByType.landmarks.length}`);
+            
+          } catch (error) {
+            console.error('Test execution error:', error);
+            allIssues.push({
+              type: 'test-execution',
+              severity: 'critical',
+              message: `Test execution failed: ${error.message}`,
+              context: 'Puppeteer test runner'
+            });
+          }
+          
+          await browser.close();
+          
+          // Save results
+          const results = {
+            summary: {
+              total_issues: allIssues.length,
+              by_type: {
+                keyboard: issuesByType.keyboard.length,
+                screenreader: issuesByType.screenreader.length,
+                focus: issuesByType.focus.length,
+                landmarks: issuesByType.landmarks.length
+              }
+            },
+            issues: allIssues,
+            details_by_type: issuesByType,
+            scan_metadata: {
+              target_url: '${{ inputs.target-url }}',
+              scan_date: new Date().toISOString(),
+              test_types: '${{ inputs.test-types }}'.split(','),
+              timeout: ${{ inputs.timeout }}
+            }
+          };
+          
+          fs.writeFileSync('${{ inputs.report-dir }}/puppeteer-accessibility-report.json', 
+                          JSON.stringify(results, null, 2));
+          
+          return results.summary;
+        }
+
+        runAccessibilityTests().then(summary => {
+          console.log('Puppeteer accessibility test completed');
+          console.log('Summary:', JSON.stringify(summary, null, 2));
+          process.exit(0);
+        }).catch(error => {
+          console.error('Test failed:', error);
+          process.exit(1);
+        });
+        EOF
+
+    - name: Run Puppeteer accessibility tests
+      id: test
+      shell: bash
+      run: |
+        echo "Running Puppeteer accessibility tests..."
+        
+        # Install Puppeteer if not already installed
+        if ! npm list puppeteer >/dev/null 2>&1; then
+          echo "Installing Puppeteer..."
+          npm install puppeteer
+        fi
+        
+        SCAN_STATUS="passed"
+        
+        # Run the test
+        if node puppeteer-accessibility-test.js; then
+          echo "✅ Puppeteer tests completed successfully"
+        else
+          echo "⚠️ Puppeteer tests completed with issues"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Extract results from report file
+        REPORT_PATH="${{ inputs.report-dir }}/puppeteer-accessibility-report.json"
+        TOTAL_ISSUES=0
+        KEYBOARD_ISSUES=0
+        SCREENREADER_ISSUES=0
+        FOCUS_ISSUES=0
+        LANDMARKS_ISSUES=0
+        
+        if [ -f "$REPORT_PATH" ]; then
+          TOTAL_ISSUES=$(jq '.summary.total_issues' "$REPORT_PATH" 2>/dev/null || echo "0")
+          KEYBOARD_ISSUES=$(jq '.summary.by_type.keyboard' "$REPORT_PATH" 2>/dev/null || echo "0")
+          SCREENREADER_ISSUES=$(jq '.summary.by_type.screenreader' "$REPORT_PATH" 2>/dev/null || echo "0")
+          FOCUS_ISSUES=$(jq '.summary.by_type.focus' "$REPORT_PATH" 2>/dev/null || echo "0")
+          LANDMARKS_ISSUES=$(jq '.summary.by_type.landmarks' "$REPORT_PATH" 2>/dev/null || echo "0")
+          
+          echo "=== Puppeteer Test Results ==="
+          echo "Total issues: $TOTAL_ISSUES"
+          echo "Keyboard issues: $KEYBOARD_ISSUES"
+          echo "Screen reader issues: $SCREENREADER_ISSUES"
+          echo "Focus issues: $FOCUS_ISSUES"
+          echo "Landmarks issues: $LANDMARKS_ISSUES"
+        else
+          echo "❌ Report file not found: $REPORT_PATH"
+          SCAN_STATUS="failed"
+        fi
+        
+        # Set outputs
+        echo "issues-count=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+        echo "keyboard-issues=$KEYBOARD_ISSUES" >> $GITHUB_OUTPUT
+        echo "screenreader-issues=$SCREENREADER_ISSUES" >> $GITHUB_OUTPUT
+        echo "focus-issues=$FOCUS_ISSUES" >> $GITHUB_OUTPUT
+        echo "landmarks-issues=$LANDMARKS_ISSUES" >> $GITHUB_OUTPUT
+        echo "report-path=$REPORT_PATH" >> $GITHUB_OUTPUT
+        echo "scan-status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+        
+        # Fail if requested and issues found
+        if [ "${{ inputs.fail-on-issues }}" == "true" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+          echo "❌ Failing due to accessibility issues"
+          exit 1
+        fi
+
+    - name: Validate and summarize results
+      shell: bash
+      run: |
+        echo "=== Puppeteer Accessibility Test Summary ==="
+        echo "Status: ${{ steps.test.outputs.scan-status }}"
+        echo "Total Issues: ${{ steps.test.outputs.issues-count }}"
+        echo "Report: ${{ steps.test.outputs.report-path }}"
+        
+        REPORT_PATH="${{ steps.test.outputs.report-path }}"
+        if [ -f "$REPORT_PATH" ]; then
+          echo "✅ Report file generated successfully"
+          echo "Report size: $(wc -c < "$REPORT_PATH") bytes"
+          
+          # Show top issues by type
+          echo ""
+          echo "Top issues by type:"
+          jq -r '.issues | group_by(.type) | .[] | "\(.[0].type): \(length) issues"' "$REPORT_PATH" 2>/dev/null || echo "Could not parse issue summary"
+        else
+          echo "❌ Report file missing"
+        fi
