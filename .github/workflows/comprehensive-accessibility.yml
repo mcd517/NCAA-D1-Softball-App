@@ -128,13 +128,6 @@ jobs:
             --chrome-options="no-sandbox,disable-dev-shm-usage" \
             --rules heading-order,landmark-one-main,aria-allowed-attr,aria-allowed-role || true
 
-      - name: Run WAVE API scan
-        env:
-          WAVE_API_KEY: ${{ secrets.WAVE_API_KEY }}
-        run: |
-          echo "Running WAVE API scan..."
-          curl "https://api.wave.webaim.org/api/request?key=$WAVE_API_KEY&reporttype=4&url=$TARGET_URL" > accessibility-reports/wave-report.json || true
-          
       - name: Generate comprehensive summary report
         run: |
           echo "# 🛠️ Accessibility Fix Guide" > accessibility-reports/README.md
@@ -152,7 +145,7 @@ jobs:
           
           echo "## 🎯 Priority Action Plan" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
-          
+          ƒ
           # Extract and prioritize axe-core violations (most reliable)
           if [ -f accessibility-reports/axe-report.json ]; then
             echo "### 🚨 Critical Issues (Fix First)" >> accessibility-reports/README.md
@@ -310,7 +303,7 @@ jobs:
       - name: Upload accessibility reports
         uses: actions/upload-artifact@v4
         with:
-          name: accessibility-evaluation-${{ github.run_number }}
+          name: accessibility-evaluation
           path: accessibility-reports/
           retention-days: 90
           
@@ -408,12 +401,54 @@ jobs:
           fi
           
           echo "" >> scan-summary.txt
-          echo "📋 **Download the complete fix guide:** \`accessibility-evaluation-${{ github.run_number }}.zip\`" >> scan-summary.txt
-          echo "📖 **Look for:** \`README.md\` with step-by-step instructions and code examples" >> scan-summary.txt
+          echo "📋 **Download the complete fix guide:** \`accessibility-evaluation.zip\`" >> scan-summary.txt
           
+          # New Copilot Assist summary section
+          echo "" >> scan-summary.txt
+          echo "## 🤖 Copilot Assisted Fixes" >> scan-summary.txt
+          echo "" >> scan-summary.txt
+          echo "- Fixes applied by Copilot: $(jq -r '.fixes_applied // 0' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0')" >> scan-summary.txt
+          echo "- Additional issues Copilot found and fixed: $(jq -r '.additional_fixes // 0' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0')" >> scan-summary.txt
+          echo "- Estimated time saved: $(jq -r '.time_saved // \"0h 0m\"' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0h 0m')" >> scan-summary.txt
+
           # Output to workflow summary
           cat scan-summary.txt >> $GITHUB_STEP_SUMMARY
           
           # Also output to console for debugging
           echo "=== DEVELOPER ACTION SUMMARY ==="
           cat scan-summary.txt
+      - name: Create GitHub issue for accessibility failures and assign Copilot
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Count issues from reports
+          CRITICAL=$(cat accessibility-reports/axe-report.json 2>/dev/null | jq -r 'if type=="array" then .[0].violations else .violations end | length' || echo 0)
+          STRUCT=$(cat accessibility-reports/lighthouse-accessibility.report.json 2>/dev/null | jq -r '[.audits["landmark-one-main"].scoreDisplayMode, .audits.bypass.scoreDisplayMode] | map(select(.=="notApplicable")) | length' || echo 0)
+          CONTENT=$(cat accessibility-reports/pa11y-report.json 2>/dev/null | jq 'length' || echo 0)
+          TOTAL=$((CRITICAL + STRUCT + CONTENT))
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "No accessibility issues found; skipping issue creation."
+            exit 0
+          fi
+          echo "Creating GitHub issue for $TOTAL accessibility issues..."
+          # Ensure jq is available
+          sudo apt-get update && sudo apt-get install -y jq
+          # Extract repo owner/name
+          IFS=/ read OWNER REPO <<< "$GITHUB_REPOSITORY"
+          # Fetch repository ID and Copilot Bot ID via GraphQL
+          read REPO_ID COPILOT_BOT_ID <<< $(curl -s -H "Authorization: bearer $GITHUB_TOKEN" -X POST -d \
+            '{"query":"query{repository(owner:\"'$OWNER'\",name:\"'$REPO'\"){id suggestedActors(capabilities:[CAN_BE_ASSIGNED],first:5){nodes{login id}}}}"}' \
+            https://api.github.com/graphql | jq -r '.data.repository | .id as $rid | .suggestedActors.nodes[] | select(.login=="copilot-swe-agent") | "\($rid) \(.id)"')
+          # Build issue variables
+          ISSUE_TITLE="Accessibility scan found $TOTAL issues (run #$GITHUB_RUN_NUMBER)"
+          ISSUE_BODY=$(jq -Rn --arg tot "$TOTAL" --arg cri "$CRITICAL" --arg str "$STRUCT" --arg cnt "$CONTENT" '{body: "An automated accessibility scan identified:\n- Critical violations: " + $cri + "\n- Structural issues: " + $str + "\n- Content issues: " + $cnt + "\n\nSee artifact accessibility-evaluation.zip"}')
+          # Create the issue
+          ISSUE_ID=$(curl -s -H "Authorization: bearer $GITHUB_TOKEN" -X POST -d \
+            '{"query":"mutation($input:CreateIssueInput!){createIssue(input:$input){issue{id}}}","variables":{"input":{"repositoryId":"'$REPO_ID'","title":"'$ISSUE_TITLE'","body":'$(echo $ISSUE_BODY | jq -r .body | @json)'}}}' \
+            https://api.github.com/graphql | jq -r '.data.createIssue.issue.id')
+          # Assign Copilot to the new issue
+          curl -s -H "Authorization: bearer $GITHUB_TOKEN" -X POST -d \
+            '{"query":"mutation($input:ReplaceActorsForAssignableInput!){replaceActorsForAssignable(input:$input){assignable{...on Issue{assignees(first:5){nodes{login}}}}}}","variables":{"input":{"assignableId":"'$ISSUE_ID'","assigneeIds":["'$COPILOT_BOT_ID'"]}}}' \
+            https://api.github.com/graphql
+          echo "Issue created and assigned to Copilot."

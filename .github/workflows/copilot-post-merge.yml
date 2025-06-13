@@ -1,0 +1,108 @@
+name: Copilot Post-Merge Accessibility Diff
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  copilot-fix-analysis:
+    # only run when PR is merged and created by Copilot agent
+    if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'copilot-swe-agent'
+    runs-on: ubuntu-latest
+    env:
+      TARGET_URL: ${{ secrets.TARGET_URL }}  # ensure your target URL is set in repo secrets
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous accessibility artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: accessibility-evaluation  # use constant artifact name from comprehensive workflow
+          path: before-artifacts
+
+      - name: Setup Node.js and tools
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install audit dependencies
+        run: npm install -g pa11y @axe-core/cli lighthouse
+
+      # Add pa11y configuration so JSON scan can work
+      - name: Create pa11y configuration file
+        run: |
+          cat > pa11y.json << 'EOF'
+          {
+            "chromeLaunchConfig": {
+              "args": [
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--headless"
+              ]
+            },
+            "timeout": 30000,
+            "wait": 3000,
+            "standard": "WCAG2AA",
+            "runners": ["htmlcs"],
+            "ignore": [
+              "WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail"
+            ]
+          }
+          EOF
+
+      - name: Create after-artifacts structure
+        run: |
+          mkdir -p after-artifacts/accessibility-reports
+
+      - name: Re-run Axe-core accessibility scan
+        run: |
+          npx axe $TARGET_URL --save after-artifacts/accessibility-reports/axe-report.json --timeout 30000 || true
+
+      - name: Re-run Pa11y scan
+        run: |
+          pa11y $TARGET_URL --reporter json --config pa11y.json > after-artifacts/accessibility-reports/pa11y-report.json || true
+
+      - name: Re-run Lighthouse mobile audit
+        run: |
+          lighthouse $TARGET_URL \
+            --only-categories=accessibility \
+            --emulated-form-factor=mobile \
+            --output=json \
+            --output-path=after-artifacts/accessibility-reports/lighthouse-accessibility-mobile.report.json \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --max-wait-for-load=30000 || true
+
+      - name: Compute fixes and generate copilot-summary.json
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          # count before/after issues
+          BEFORE_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' before-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
+          AFTER_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' after-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
+          BEFORE_P=$(jq 'length' before-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          AFTER_P=$(jq 'length' after-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          # compute fixes
+          FIXED_A=$((BEFORE_A - AFTER_A))
+          FIXED_P=$((BEFORE_P - AFTER_P))
+          TOTAL_FIXED=$((FIXED_A + FIXED_P))
+          # estimate time (10m per fix)
+          HOURS=$((TOTAL_FIXED * 10 / 60))
+          MINS=$((TOTAL_FIXED * 10 % 60))
+          TIME_SAVED="${HOURS}h ${MINS}m"
+          # emit summary JSON
+          mkdir -p after-artifacts/accessibility-reports
+          cat <<EOF > after-artifacts/accessibility-reports/copilot-summary.json
+          {
+            "fixes_applied": ${TOTAL_FIXED},
+            "additional_fixes": 0,
+            "time_saved": "${TIME_SAVED}"
+          }
+          EOF
+
+      - name: Upload copilot summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-summary
+          path: after-artifacts/accessibility-reports/copilot-summary.json
+          retention-days: 30
