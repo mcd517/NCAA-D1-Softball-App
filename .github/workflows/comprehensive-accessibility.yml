@@ -115,7 +115,7 @@ jobs:
           echo "" >> accessibility-reports/copilot-analysis.md
           
           # Create a script to analyze code with AI
-          cat > analyze_accessibility.js << 'EOF'
+          cat > analyze_accessibility.cjs << 'EOF'
           const fs = require('fs');
           const https = require('https');
           
@@ -229,7 +229,7 @@ jobs:
           EOF
           
           # Run AI analysis
-          node analyze_accessibility.js
+          node analyze_accessibility.cjs
           
           # Append AI analysis if successful
           if [ -f "ai-analysis.md" ]; then
