@@ -223,6 +223,266 @@ jobs:
           report-dir: ${{ env.REPORT_DIR }}
           fail-on-violations: false
 
+      - name: Run additional accessibility scans
+        if: matrix.tool == 'playwright'
+        run: |
+          echo "Running additional accessibility scans..."
+          
+          # Create keyboard navigation test script
+          cat > keyboard-test.cjs << 'EOF'
+          const puppeteer = require('puppeteer');
+          const { writeFileSync } = require('fs');
+
+          async function testKeyboardNavigation() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              const targetUrl = process.env.TARGET_URL || '${{ needs.setup.outputs.target-url }}';
+              console.log(`Testing keyboard navigation on: ${targetUrl}`);
+              await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+              
+              // Test tab navigation
+              console.log('Testing focusable elements...');
+              const focusableElements = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', elements => {
+                return elements.map(el => ({
+                  tagName: el.tagName,
+                  id: el.id,
+                  className: el.className,
+                  tabIndex: el.tabIndex,
+                  textContent: el.textContent ? el.textContent.trim().substring(0, 50) : ''
+                }));
+              });
+              
+              console.log(`Found ${focusableElements.length} focusable elements`);
+              
+              // Test each focusable element (limit to 20 for performance)
+              const elementsToTest = Math.min(focusableElements.length, 20);
+              for (let i = 0; i < elementsToTest; i++) {
+                await page.keyboard.press('Tab');
+                
+                const activeElement = await page.evaluate(() => {
+                  const el = document.activeElement;
+                  if (!el) return null;
+                  
+                  const computedStyle = window.getComputedStyle(el);
+                  const pseudoStyle = window.getComputedStyle(el, ':focus');
+                  
+                  return {
+                    tagName: el.tagName,
+                    id: el.id,
+                    className: el.className,
+                    textContent: el.textContent ? el.textContent.trim().substring(0, 30) : '',
+                    hasVisibleFocus: (
+                      computedStyle.outline !== 'none' ||
+                      computedStyle.outlineWidth !== '0px' ||
+                      computedStyle.outlineStyle !== 'none' ||
+                      computedStyle.boxShadow !== 'none' ||
+                      pseudoStyle.outline !== 'none' ||
+                      pseudoStyle.outlineWidth !== '0px' ||
+                      pseudoStyle.boxShadow !== 'none'
+                    )
+                  };
+                });
+                
+                if (activeElement && !activeElement.hasVisibleFocus) {
+                  issues.push({
+                    type: 'keyboard-navigation',
+                    severity: 'moderate',
+                    message: `Element ${activeElement.tagName} lacks visible focus indicator`,
+                    element: activeElement
+                  });
+                }
+              }
+              
+              // Test skip links
+              console.log('Testing skip links...');
+              const skipLinks = await page.$$eval('a[href^="#"]', links => {
+                return links.filter(link => {
+                  const text = link.textContent.toLowerCase();
+                  return text.includes('skip') || text.includes('main');
+                }).length;
+              });
+              
+              if (skipLinks === 0) {
+                issues.push({
+                  type: 'keyboard-navigation',
+                  severity: 'moderate',
+                  message: 'No skip links found for keyboard navigation',
+                  element: null
+                });
+              }
+              
+            } catch (error) {
+              console.error('Keyboard navigation test error:', error);
+              issues.push({
+                type: 'keyboard-navigation',
+                severity: 'critical',
+                message: `Keyboard navigation test failed: ${error.message}`,
+                element: null
+              });
+            }
+            
+            await browser.close();
+            
+            writeFileSync('${{ env.REPORT_DIR }}/keyboard-navigation.json', 
+              JSON.stringify(issues, null, 2));
+            
+            console.log(`Keyboard navigation test completed. Found ${issues.length} issues.`);
+            return issues.length;
+          }
+
+          testKeyboardNavigation().then(count => {
+            console.log(`Found ${count} keyboard navigation issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Keyboard test error:', err);
+            process.exit(1);
+          });
+          EOF
+
+          # Create screen reader simulation test
+          cat > screen-reader-test.cjs << 'EOF'
+          const puppeteer = require('puppeteer');
+          const { writeFileSync } = require('fs');
+
+          async function testScreenReaderCompatibility() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              const targetUrl = process.env.TARGET_URL || '${{ needs.setup.outputs.target-url }}';
+              console.log(`Testing screen reader compatibility on: ${targetUrl}`);
+              await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+              
+              // Test for main landmark
+              const landmarks = await page.$$eval('[role="main"], main', els => els.length);
+              if (landmarks === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No main landmark found for screen reader navigation',
+                  count: 1
+                });
+              }
+              
+              // Test heading structure
+              const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => {
+                return headings.map(h => ({
+                  tagName: h.tagName,
+                  text: h.textContent.trim().substring(0, 50),
+                  level: parseInt(h.tagName[1])
+                }));
+              });
+              
+              if (headings.length === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No heading structure found for screen reader navigation',
+                  count: 1
+                });
+              } else {
+                // Check heading hierarchy
+                let previousLevel = 0;
+                for (const heading of headings) {
+                  if (heading.level > previousLevel + 1) {
+                    issues.push({
+                      type: 'screen-reader',
+                      severity: 'moderate',
+                      message: `Heading hierarchy skip detected (h${previousLevel} to h${heading.level})`,
+                      count: 1
+                    });
+                    break;
+                  }
+                  previousLevel = heading.level;
+                }
+              }
+              
+              // Test for ARIA landmarks
+              const ariaLandmarks = await page.$$eval('[role="navigation"], [role="banner"], [role="contentinfo"], nav, header, footer', els => els.length);
+              if (ariaLandmarks === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No ARIA landmarks found for screen reader navigation',
+                  count: 1
+                });
+              }
+              
+              // Test page title
+              const pageTitle = await page.title();
+              if (!pageTitle || pageTitle.trim() === '') {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'Page missing descriptive title',
+                  count: 1
+                });
+              }
+              
+              // Test language attribute
+              const langAttribute = await page.evaluate(() => {
+                return document.documentElement.getAttribute('lang');
+              });
+              
+              if (!langAttribute) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'HTML element missing lang attribute',
+                  count: 1
+                });
+              }
+              
+            } catch (error) {
+              console.error('Screen reader test error:', error);
+              issues.push({
+                type: 'screen-reader',
+                severity: 'critical',
+                message: `Screen reader test failed: ${error.message}`,
+                count: 1
+              });
+            }
+            
+            await browser.close();
+            
+            writeFileSync('${{ env.REPORT_DIR }}/screen-reader.json', 
+              JSON.stringify(issues, null, 2));
+            
+            console.log(`Screen reader test completed. Found ${issues.length} issues.`);
+            return issues.length;
+          }
+
+          testScreenReaderCompatibility().then(count => {
+            console.log(`Found ${count} screen reader issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Screen reader test error:', err);
+            process.exit(1);
+          });
+          EOF
+
+          # Install puppeteer for the additional tests
+          npm install puppeteer --save-dev || echo "Puppeteer installation failed, skipping additional tests"
+          
+          # Run the additional tests
+          echo "Running keyboard navigation test..."
+          node keyboard-test.cjs || echo "Keyboard test failed"
+          
+          echo "Running screen reader compatibility test..."
+          node screen-reader-test.cjs || echo "Screen reader test failed"
+
       # Upload individual tool reports as artifacts
       - name: Upload scan reports
         uses: actions/upload-artifact@v4
