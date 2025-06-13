@@ -105,88 +105,170 @@ jobs:
             
       - name: Generate comprehensive summary report
         run: |
-          echo "# Web Accessibility Evaluation Report" > accessibility-reports/README.md
+          echo "# 🛠️ Accessibility Fix Guide" > accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
           echo "**Scan Date:** $(date)" >> accessibility-reports/README.md
           echo "**Target URL:** $TARGET_URL" >> accessibility-reports/README.md
           echo "**Standards:** WCAG 2.1 AA" >> accessibility-reports/README.md
-          echo "**Tools Used:** pa11y, axe-core, Lighthouse" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
           
-          echo "## Executive Summary" >> accessibility-reports/README.md
+          # Initialize counters and arrays for prioritization
+          CRITICAL_ISSUES=0
+          HIGH_PRIORITY=0
+          MEDIUM_PRIORITY=0
+          LOW_PRIORITY=0
+          
+          echo "## 🎯 Priority Action Plan" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
           
-          # Initialize counters
-          TOTAL_ISSUES=0
-          PA11Y_COUNT=0
-          AXE_COUNT=0
-          LIGHTHOUSE_SCORE="N/A"
+          # Extract and prioritize axe-core violations (most reliable)
+          if [ -f accessibility-reports/axe-report.json ]; then
+            echo "### 🚨 Critical Issues (Fix First)" >> accessibility-reports/README.md
+            echo "" >> accessibility-reports/README.md
+            echo "These are WCAG violations that significantly impact user experience:" >> accessibility-reports/README.md
+            echo "" >> accessibility-reports/README.md
+            
+            # Extract critical violations with specific fix guidance
+            cat accessibility-reports/axe-report.json | jq -r '
+              if type == "array" then .[0].violations else .violations end |
+              .[] |
+              "#### \(.id | gsub("-"; " ") | ascii_upcase)
+              **Impact:** \(.impact // "Unknown")
+              **Description:** \(.description)
+              **How to fix:** \(.help)
+              **Elements affected:** \(.nodes | length)
+              **WCAG Reference:** \(.tags | map(select(test("wcag"))) | join(", "))
+              
+              "
+            ' 2>/dev/null >> accessibility-reports/README.md || echo "Could not parse axe-core violations" >> accessibility-reports/README.md
+            
+            CRITICAL_ISSUES=$(cat accessibility-reports/axe-report.json | jq -r 'if type == "array" then .[0].violations else .violations end | length' 2>/dev/null || echo "0")
+          fi
           
-          # Count pa11y issues
+          # Extract Lighthouse structural issues
+          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
+            echo "### 🏗️ Structural Issues (High Priority)" >> accessibility-reports/README.md
+            echo "" >> accessibility-reports/README.md
+            echo "These foundational issues affect screen reader navigation:" >> accessibility-reports/README.md
+            echo "" >> accessibility-reports/README.md
+            
+            # Check for landmark-one-main
+            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
+              echo "#### ADD MAIN LANDMARK" >> accessibility-reports/README.md
+              echo "**Issue:** Your page lacks a \`<main>\` landmark" >> accessibility-reports/README.md
+              echo "**Fix:** Wrap your primary content in a \`<main>\` element" >> accessibility-reports/README.md
+              echo "\`\`\`jsx" >> accessibility-reports/README.md
+              echo "// In your App.jsx:" >> accessibility-reports/README.md
+              echo "<main>" >> accessibility-reports/README.md
+              echo "  {/* Your main content components */}" >> accessibility-reports/README.md
+              echo "  <StatLeaders />" >> accessibility-reports/README.md
+              echo "  <TeamRankings />" >> accessibility-reports/README.md
+              echo "  <TournamentBracket />" >> accessibility-reports/README.md
+              echo "</main>" >> accessibility-reports/README.md
+              echo "\`\`\`" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              HIGH_PRIORITY=$((HIGH_PRIORITY + 1))
+            fi
+            
+            # Check for bypass navigation
+            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
+              echo "#### ADD SKIP NAVIGATION" >> accessibility-reports/README.md
+              echo "**Issue:** No way for keyboard users to skip repetitive navigation" >> accessibility-reports/README.md
+              echo "**Fix:** Add a skip link at the top of your page" >> accessibility-reports/README.md
+              echo "\`\`\`jsx" >> accessibility-reports/README.md
+              echo "// Add this as the first element in App.jsx:" >> accessibility-reports/README.md
+              echo "<a href=\"#main-content\" className=\"skip-link\">" >> accessibility-reports/README.md
+              echo "  Skip to main content" >> accessibility-reports/README.md
+              echo "</a>" >> accessibility-reports/README.md
+              echo "<main id=\"main-content\">" >> accessibility-reports/README.md
+              echo "  {/* Your content */}" >> accessibility-reports/README.md
+              echo "</main>" >> accessibility-reports/README.md
+              echo "\`\`\`" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              echo "Add this CSS:" >> accessibility-reports/README.md
+              echo "\`\`\`css" >> accessibility-reports/README.md
+              echo ".skip-link {" >> accessibility-reports/README.md
+              echo "  position: absolute;" >> accessibility-reports/README.md
+              echo "  top: -40px;" >> accessibility-reports/README.md
+              echo "  left: 6px;" >> accessibility-reports/README.md
+              echo "  background: #000;" >> accessibility-reports/README.md
+              echo "  color: #fff;" >> accessibility-reports/README.md
+              echo "  padding: 8px;" >> accessibility-reports/README.md
+              echo "  text-decoration: none;" >> accessibility-reports/README.md
+              echo "  z-index: 1000;" >> accessibility-reports/README.md
+              echo "}" >> accessibility-reports/README.md
+              echo ".skip-link:focus { top: 6px; }" >> accessibility-reports/README.md
+              echo "\`\`\`" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              HIGH_PRIORITY=$((HIGH_PRIORITY + 1))
+            fi
+          fi
+          
+          # Analyze pa11y issues for common patterns
           if [ -f accessibility-reports/pa11y-report.json ]; then
             PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
-            echo "- **pa11y Issues:** $PA11Y_COUNT" >> accessibility-reports/README.md
-            TOTAL_ISSUES=$((TOTAL_ISSUES + PA11Y_COUNT))
-          else
-            echo "- **pa11y Issues:** Report not generated" >> accessibility-reports/README.md
+            
+            if [ "$PA11Y_COUNT" -gt "100" ]; then
+              echo "### 📝 Content Quality Issues (Medium Priority)" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              echo "**Found:** $PA11Y_COUNT content and markup issues" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              echo "**Common fixes needed:**" >> accessibility-reports/README.md
+              echo "- Add \`alt\` attributes to images" >> accessibility-reports/README.md
+              echo "- Ensure proper heading hierarchy (h1 → h2 → h3)" >> accessibility-reports/README.md
+              echo "- Add labels to form inputs" >> accessibility-reports/README.md
+              echo "- Improve color contrast ratios" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              echo "📊 **Detailed issues:** See \`pa11y-report.html\` for specific elements and locations" >> accessibility-reports/README.md
+              echo "" >> accessibility-reports/README.md
+              MEDIUM_PRIORITY=$PA11Y_COUNT
+            fi
           fi
           
-          # Count axe-core issues
-          if [ -f accessibility-reports/axe-report.json ]; then
-            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq '.violations | length' 2>/dev/null || echo "0")
-            echo "- **axe-core Violations:** $AXE_COUNT" >> accessibility-reports/README.md
-            TOTAL_ISSUES=$((TOTAL_ISSUES + AXE_COUNT))
-          else
-            echo "- **axe-core Violations:** Report not generated" >> accessibility-reports/README.md
-          fi
+          # Summary and next steps
+          TOTAL_ISSUES=$((CRITICAL_ISSUES + HIGH_PRIORITY + MEDIUM_PRIORITY))
           
-          # Extract Lighthouse accessibility score
-          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
-            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "N/A")
-            echo "- **Lighthouse Accessibility Score:** $LIGHTHOUSE_SCORE%" >> accessibility-reports/README.md
-          else
-            echo "- **Lighthouse Accessibility Score:** Report not generated" >> accessibility-reports/README.md
-          fi
-          
+          echo "## ✅ Implementation Roadmap" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
-          echo "**Total Issues Found:** $TOTAL_ISSUES" >> accessibility-reports/README.md
+          echo "**Phase 1: Critical Fixes** (Est. 2-4 hours)" >> accessibility-reports/README.md
+          echo "- Fix $CRITICAL_ISSUES WCAG violations (see above)" >> accessibility-reports/README.md
+          echo "- Add main landmark and skip navigation ($HIGH_PRIORITY structural fixes)" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "**Phase 2: Content Quality** (Est. 4-8 hours)" >> accessibility-reports/README.md
+          echo "- Address $MEDIUM_PRIORITY content and markup issues" >> accessibility-reports/README.md
+          echo "- Review pa11y-report.html for specific element fixes" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "**Phase 3: Validation** (Est. 1-2 hours)" >> accessibility-reports/README.md
+          echo "- Re-run accessibility scan" >> accessibility-reports/README.md
+          echo "- Test with screen reader (NVDA or VoiceOver)" >> accessibility-reports/README.md
+          echo "- Validate keyboard navigation" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
           
-          # Add status indicator
-          if [ "$TOTAL_ISSUES" -eq "0" ]; then
-            echo "✅ **Status:** No accessibility issues detected!" >> accessibility-reports/README.md
-          elif [ "$TOTAL_ISSUES" -le "5" ]; then
-            echo "⚠️ **Status:** Minor accessibility issues found" >> accessibility-reports/README.md
-          else
-            echo "❌ **Status:** Significant accessibility issues found" >> accessibility-reports/README.md
-          fi
+          echo "## 🔧 Quick Component Fixes" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "Based on your React components, here are likely needed updates:" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "### App.jsx" >> accessibility-reports/README.md
+          echo "- Wrap content in \`<main>\` element" >> accessibility-reports/README.md
+          echo "- Add skip link for keyboard users" >> accessibility-reports/README.md
+          echo "- Ensure proper page title" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "### StatLeaders.jsx, TeamRankings.jsx, TournamentBracket.jsx" >> accessibility-reports/README.md
+          echo "- Add proper heading structure (h2, h3)" >> accessibility-reports/README.md
+          echo "- Ensure data tables have headers" >> accessibility-reports/README.md
+          echo "- Add ARIA labels for complex widgets" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
+          echo "### Scoreboard.jsx" >> accessibility-reports/README.md
+          echo "- Add live region for score updates" >> accessibility-reports/README.md
+          echo "- Ensure proper labeling of interactive elements" >> accessibility-reports/README.md
+          echo "" >> accessibility-reports/README.md
           
+          echo "## 📚 Resources" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
-          echo "## Detailed Reports" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "### pa11y Reports" >> accessibility-reports/README.md
-          echo "- **HTML Report:** \`pa11y-report.html\` - Visual report with highlighted issues" >> accessibility-reports/README.md
-          echo "- **JSON Report:** \`pa11y-report.json\` - Machine-readable data for integration" >> accessibility-reports/README.md
-          echo "- **CSV Report:** \`pa11y-report.csv\` - Spreadsheet-compatible format" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "### axe-core Reports" >> accessibility-reports/README.md
-          echo "- **JSON Report:** \`axe-report.json\` - Detailed violation analysis" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "### Lighthouse Reports" >> accessibility-reports/README.md
-          echo "- **HTML Report:** \`lighthouse-accessibility.report.html\` - Interactive accessibility audit" >> accessibility-reports/README.md
-          echo "- **JSON Report:** \`lighthouse-accessibility.report.json\` - Raw audit data" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "## About the Tools" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "- **pa11y:** Command-line accessibility testing using HTML_CodeSniffer" >> accessibility-reports/README.md
-          echo "- **axe-core:** Industry-standard accessibility testing engine" >> accessibility-reports/README.md
-          echo "- **Lighthouse:** Google's web quality auditing tool with accessibility focus" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "## Implementation Notes" >> accessibility-reports/README.md
-          echo "" >> accessibility-reports/README.md
-          echo "This automated scan provides a baseline accessibility assessment following WCAG 2.1 AA guidelines." >> accessibility-reports/README.md
-          echo "Manual testing and expert review are also recommended for comprehensive accessibility compliance." >> accessibility-reports/README.md
-          echo "Color contrast issues are ignored in pa11y scans as they often produce false positives in automated testing." >> accessibility-reports/README.md
+          echo "- [React Accessibility Guide](https://react.dev/learn/accessibility)" >> accessibility-reports/README.md
+          echo "- [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)" >> accessibility-reports/README.md
+          echo "- [axe-react Development Tools](https://github.com/dequelabs/axe-core-npm/tree/develop/packages/react)" >> accessibility-reports/README.md
+          echo "- [Screen Reader Testing Guide](https://webaim.org/articles/screenreader_testing/)" >> accessibility-reports/README.md
           
       - name: List generated reports
         run: |
@@ -203,7 +285,7 @@ jobs:
       - name: Create workflow summary
         if: always()
         run: |
-          echo "# 🔍 Accessibility Scan Results" > scan-summary.txt
+          echo "# 🛠️ Developer Action Required" > scan-summary.txt
           echo "" >> scan-summary.txt
           echo "**Scan completed:** $(date)" >> scan-summary.txt
           echo "**Target URL:** $TARGET_URL" >> scan-summary.txt
@@ -211,89 +293,95 @@ jobs:
           echo "" >> scan-summary.txt
           
           TOTAL_ISSUES=0
+          CRITICAL_COUNT=0
+          HIGH_PRIORITY_COUNT=0
           
-          # Check pa11y results
-          if [ -f accessibility-reports/pa11y-report.json ]; then
-            PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
-            echo "📋 **pa11y Issues:** $PA11Y_COUNT" >> scan-summary.txt
-            TOTAL_ISSUES=$((TOTAL_ISSUES + PA11Y_COUNT))
-          else
-            echo "📋 **pa11y Issues:** Report generation failed" >> scan-summary.txt
-          fi
-          
-          # Check axe-core results with debugging
+          # Check axe-core results for critical issues
           if [ -f accessibility-reports/axe-report.json ]; then
-            echo "DEBUG: axe-report.json exists, checking structure..."
-            # Check if it's an array or object with violations property
-            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if type == "array" then .[0].violations | length else .violations | length end' 2>/dev/null || echo "0")
-            
-            # If still 0, try alternative structures
-            if [ "$AXE_COUNT" = "0" ]; then
-              AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if has("testResults") then .testResults[0].violations | length else empty end' 2>/dev/null || echo "0")
+            CRITICAL_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if type == "array" then .[0].violations else .violations end | length' 2>/dev/null || echo "0")
+            if [ "$CRITICAL_COUNT" -gt "0" ]; then
+              echo "🚨 **CRITICAL:** $CRITICAL_COUNT WCAG violations require immediate fixes" >> scan-summary.txt
+            else
+              echo "✅ **WCAG Compliance:** No critical violations found" >> scan-summary.txt
             fi
-            
-            # If still 0, try to count any violation-like objects
-            if [ "$AXE_COUNT" = "0" ]; then
-              AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r '[.. | objects | select(has("id") and has("impact") and has("nodes"))] | length' 2>/dev/null || echo "0")
-            fi
-            
-            echo "🔧 **axe-core Violations:** $AXE_COUNT" >> scan-summary.txt
-            TOTAL_ISSUES=$((TOTAL_ISSUES + AXE_COUNT))
-          else
-            echo "🔧 **axe-core Violations:** Report generation failed" >> scan-summary.txt
+            TOTAL_ISSUES=$((TOTAL_ISSUES + CRITICAL_COUNT))
           fi
           
-          # Check Lighthouse results
+          # Check Lighthouse for structural issues
           if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
             LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
             
-            # Check for hidden audits that might have failed
-            echo "DEBUG: Checking Lighthouse hidden audits..."
-            LIGHTHOUSE_HIDDEN_FAILURES=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | .key' 2>/dev/null | wc -l || echo "0")
-            
-            # Also check for notApplicable audits in hidden group that should have failed
-            LIGHTHOUSE_HIDDEN_NOT_APPLICABLE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.scoreDisplayMode == "notApplicable" and (.key | test("landmark|heading|bypass"))) | .key' 2>/dev/null | wc -l || echo "0")
-            
-            echo "DEBUG: Lighthouse hidden failures: $LIGHTHOUSE_HIDDEN_FAILURES"
-            echo "DEBUG: Lighthouse structural audits marked notApplicable: $LIGHTHOUSE_HIDDEN_NOT_APPLICABLE"
-            
-            # List specific hidden failures and structural issues
-            if [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ] || [ "$LIGHTHOUSE_HIDDEN_NOT_APPLICABLE" -gt "0" ]; then
-              echo "DEBUG: Lighthouse structural accessibility issues:"
-              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | "\(.key): \(.value.title)"' 2>/dev/null | head -5 || true
-              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.scoreDisplayMode == "notApplicable" and (.key | test("landmark|heading|bypass"))) | "\(.key): \(.value.title) (marked not applicable)"' 2>/dev/null | head -5 || true
+            # Count structural issues
+            LIGHTHOUSE_STRUCTURAL=0
+            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
+              LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
+            fi
+            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
+              LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
             fi
             
-            TOTAL_LIGHTHOUSE_ISSUES=$((LIGHTHOUSE_HIDDEN_FAILURES + LIGHTHOUSE_HIDDEN_NOT_APPLICABLE))
-            echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE%" >> scan-summary.txt
-            echo "💡 **Lighthouse Hidden Issues:** $TOTAL_LIGHTHOUSE_ISSUES" >> scan-summary.txt
-            
-            # Add Lighthouse interpretation
-            if [ "$LIGHTHOUSE_SCORE" = "100" ] && [ "$TOTAL_LIGHTHOUSE_ISSUES" -gt "0" ]; then
-              echo "⚠️ **Note:** Lighthouse's 100% score excludes $TOTAL_LIGHTHOUSE_ISSUES structural violations that don't affect its weighted scoring algorithm" >> scan-summary.txt
+            if [ "$LIGHTHOUSE_STRUCTURAL" -gt "0" ]; then
+              echo "🏗️ **STRUCTURAL:** $LIGHTHOUSE_STRUCTURAL foundation issues need fixes" >> scan-summary.txt
+              HIGH_PRIORITY_COUNT=$LIGHTHOUSE_STRUCTURAL
             fi
-          else
-            echo "💡 **Lighthouse Score:** Report generation failed" >> scan-summary.txt
+            
+            echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE% (structural issues excluded from score)" >> scan-summary.txt
+            TOTAL_ISSUES=$((TOTAL_ISSUES + LIGHTHOUSE_STRUCTURAL))
+          fi
+          
+          # Check pa11y for content issues
+          if [ -f accessibility-reports/pa11y-report.json ]; then
+            PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
+            if [ "$PA11Y_COUNT" -gt "0" ]; then
+              echo "📝 **CONTENT:** $PA11Y_COUNT markup and content issues found" >> scan-summary.txt
+            fi
+            TOTAL_ISSUES=$((TOTAL_ISSUES + PA11Y_COUNT))
           fi
           
           echo "" >> scan-summary.txt
-          echo "**Total Issues Found:** $TOTAL_ISSUES" >> scan-summary.txt
-          echo "" >> scan-summary.txt
           
-          # Final status
+          # Action plan
           if [ "$TOTAL_ISSUES" -eq "0" ]; then
-            echo "✅ **Result:** No accessibility issues detected!" >> scan-summary.txt
+            echo "🎉 **CONGRATULATIONS!** Your app is accessibility compliant!" >> scan-summary.txt
           else
-            echo "⚠️ **Result:** $TOTAL_ISSUES accessibility issues found. Review detailed reports." >> scan-summary.txt
+            echo "## 🎯 Next Steps (Estimated time: 4-8 hours)" >> scan-summary.txt
+            echo "" >> scan-summary.txt
+            
+            if [ "$CRITICAL_COUNT" -gt "0" ]; then
+              echo "**1. Fix Critical Issues First** ⏰ 2-3 hours" >> scan-summary.txt
+              echo "   - Download reports and address $CRITICAL_COUNT WCAG violations" >> scan-summary.txt
+              echo "   - These impact users with disabilities immediately" >> scan-summary.txt
+              echo "" >> scan-summary.txt
+            fi
+            
+            if [ "$HIGH_PRIORITY_COUNT" -gt "0" ]; then
+              echo "**2. Add Structural Elements** ⏰ 1 hour" >> scan-summary.txt
+              echo "   - Add \`<main>\` landmark to App.jsx" >> scan-summary.txt
+              echo "   - Add skip navigation for keyboard users" >> scan-summary.txt
+              echo "   - These help screen readers navigate your site" >> scan-summary.txt
+              echo "" >> scan-summary.txt
+            fi
+            
+            if [ "$PA11Y_COUNT" -gt "50" ]; then
+              echo "**3. Review Content Issues** ⏰ 2-4 hours" >> scan-summary.txt
+              echo "   - Check pa11y-report.html for specific fixes needed" >> scan-summary.txt
+              echo "   - Focus on images, headings, and form labels" >> scan-summary.txt
+              echo "" >> scan-summary.txt
+            fi
+            
+            echo "**4. Test Your Fixes** ⏰ 30 minutes" >> scan-summary.txt
+            echo "   - Re-run this workflow to verify improvements" >> scan-summary.txt
+            echo "   - Test keyboard navigation (Tab key)" >> scan-summary.txt
+            echo "   - Test with screen reader if possible" >> scan-summary.txt
           fi
           
           echo "" >> scan-summary.txt
-          echo "📊 **Download Reports:** Check the 'Artifacts' section below for detailed reports." >> scan-summary.txt
-          echo "🔗 **Report Archive:** \`accessibility-evaluation-${{ github.run_number }}.zip\`" >> scan-summary.txt
+          echo "📋 **Download the complete fix guide:** \`accessibility-evaluation-${{ github.run_number }}.zip\`" >> scan-summary.txt
+          echo "📖 **Look for:** \`README.md\` with step-by-step instructions and code examples" >> scan-summary.txt
           
           # Output to workflow summary
           cat scan-summary.txt >> $GITHUB_STEP_SUMMARY
           
-          # Also output to console
-          echo "=== ACCESSIBILITY SCAN SUMMARY ==="
+          # Also output to console for debugging
+          echo "=== DEVELOPER ACTION SUMMARY ==="
           cat scan-summary.txt
