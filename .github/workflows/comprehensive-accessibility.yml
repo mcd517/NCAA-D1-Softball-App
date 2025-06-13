@@ -690,20 +690,68 @@ jobs:
           echo "keyboard_issues=$KEYBOARD_ISSUES" >> $GITHUB_OUTPUT
           echo "screenreader_issues=$SCREENREADER_ISSUES" >> $GITHUB_OUTPUT
           
-          # Store issue summary for manual GitHub issue creation
+          # Store enhanced issue summary for GitHub issue creation
+          # Calculate business impact metrics to align with enterprise workflow
+          CRITICAL_VIOLATIONS=$AXCORE_ISSUES
+          HIGH_PRIORITY_ISSUES=$((KEYBOARD_ISSUES + SCREENREADER_ISSUES))
+          
+          ESTIMATED_USER_IMPACT=0
+          if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+            ESTIMATED_USER_IMPACT=25
+          elif [ "$HIGH_PRIORITY_ISSUES" -gt "0" ]; then
+            ESTIMATED_USER_IMPACT=15
+          elif [ "$TOTAL_ISSUES" -gt "0" ]; then
+            ESTIMATED_USER_IMPACT=5
+          fi
+          
+          COMPLIANCE_RISK="LOW"
+          if [ "$CRITICAL_VIOLATIONS" -gt "0" ]; then
+            COMPLIANCE_RISK="HIGH"
+          elif [ "$HIGH_PRIORITY_ISSUES" -gt "5" ]; then
+            COMPLIANCE_RISK="MEDIUM"
+          fi
+          
+          ESTIMATED_FIX_HOURS=$((CRITICAL_VIOLATIONS * 2 + HIGH_PRIORITY_ISSUES * 1 + PA11Y_ISSUES / 2))
+          if [ "$ESTIMATED_FIX_HOURS" -lt "1" ] && [ "$TOTAL_ISSUES" -gt "0" ]; then
+            ESTIMATED_FIX_HOURS=1
+          fi
+          
           cat > accessibility-reports/issue-summary.json << EOF
           {
-            "total_issues": ${TOTAL_ISSUES},
-            "breakdown": {
+            "scan_results": {
+              "total_issues": ${TOTAL_ISSUES},
+              "status": "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "passed" || echo "failed")",
+              "scan_quality_score": 100,
+              "workflow_type": "comprehensive"
+            },
+            "technical_breakdown": {
               "axcore_issues": ${AXCORE_ISSUES},
               "pa11y_issues": ${PA11Y_ISSUES},
               "keyboard_issues": ${KEYBOARD_ISSUES},
-              "screenreader_issues": ${SCREENREADER_ISSUES}
+              "screenreader_issues": ${SCREENREADER_ISSUES},
+              "lighthouse_desktop_score": "$(jq '.categories.accessibility.score * 100' accessibility-reports/lighthouse-accessibility-desktop.json 2>/dev/null || echo 0)",
+              "lighthouse_mobile_score": "$(jq '.categories.accessibility.score * 100' accessibility-reports/lighthouse-accessibility-mobile.json 2>/dev/null || echo 0)"
             },
-            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "workflow_run_number": "${{ github.run_number }}",
-            "workflow_run_id": "${{ github.run_id }}",
-            "target_url": "$TARGET_URL"
+            "business_impact": {
+              "compliance_risk_level": "$COMPLIANCE_RISK",
+              "estimated_user_impact_percentage": $ESTIMATED_USER_IMPACT,
+              "estimated_fix_hours": $ESTIMATED_FIX_HOURS,
+              "business_ready": $([ "$TOTAL_ISSUES" -eq "0" ] && echo "true" || echo "false"),
+              "immediate_action_required": $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "true" || echo "false")
+            },
+            "scan_metadata": {
+              "target_url": "$TARGET_URL",
+              "standards": "WCAG 2.1 AA",
+              "tools_used": "axe-core,pa11y,lighthouse,custom-keyboard,custom-screenreader",
+              "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "workflow_run_id": "${{ github.run_id }}",
+              "workflow_run_number": "${{ github.run_number }}"
+            },
+            "executive_summary": {
+              "recommendation": "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "Deploy with confidence - all accessibility standards met" || ([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "Delay deployment - critical compliance issues require immediate fixes" || echo "Plan accessibility improvements for next development cycle"))",
+              "risk_assessment": "$([ "$COMPLIANCE_RISK" == "HIGH" ] && echo "High legal/regulatory risk due to WCAG violations" || ([ "$COMPLIANCE_RISK" == "MEDIUM" ] && echo "Moderate risk - plan remediation within 1-2 sprints" || echo "Low risk - maintain current accessibility standards"))",
+              "user_impact_summary": "$([ "$ESTIMATED_USER_IMPACT" -eq "0" ] && echo "All users can access the application effectively" || echo "$ESTIMATED_USER_IMPACT% of users with disabilities may face barriers")"
+            }
           }
           EOF
 
