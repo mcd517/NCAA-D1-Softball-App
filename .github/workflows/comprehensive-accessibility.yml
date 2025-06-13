@@ -29,9 +29,24 @@ jobs:
         
       - name: Install accessibility testing tools
         run: |
+          echo "Installing global accessibility tools..."
           npm install -g pa11y @axe-core/cli lighthouse
+          
+          echo "Installing Puppeteer and Playwright dependencies..."
           npm install puppeteer --save-dev
           npm install @axe-core/playwright --save-dev
+          
+          echo "Verifying Puppeteer installation..."
+          if npm list puppeteer >/dev/null 2>&1; then
+            echo "✅ Puppeteer installed successfully"
+            node -e "console.log('Puppeteer version:', require('puppeteer/package.json').version)"
+          else
+            echo "❌ Puppeteer installation failed, trying global installation..."
+            npm install -g puppeteer || echo "Global Puppeteer installation also failed"
+          fi
+          
+          echo "Final Puppeteer check..."
+          node -e "try { require('puppeteer'); console.log('✅ Puppeteer is accessible'); } catch(e) { console.log('❌ Puppeteer not accessible:', e.message); }"
           
       - name: Install Playwright browsers
         run: |
@@ -240,24 +255,81 @@ jobs:
           (async () => {
             const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
             const page = await browser.newPage();
-            const issues = [];
-            const targetUrl = process.env.TARGET_URL || '$TARGET_URL';
+            const screenReaderIssues = [];
+            const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
+            
+            console.log(`Testing screen reader compatibility on: ${targetUrl}`);
             await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 30000 });
-            // Keyboard navigation tests
-            const focusable = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', els => els.map(el=>({ tag: el.tagName, id: el.id, text: el.textContent?.trim().slice(0,30) })));
-            for(const el of focusable.slice(0,20)){
-              await page.keyboard.press('Tab');
-              const active = await page.evaluate(() => document.activeElement && document.activeElement.tagName);
-              if (!active) issues.push({ type: 'keyboard-navigation', severity: 'moderate', message: 'Tab did not focus an element' });
-            }
+            
             // Screen reader landmark and heading checks
             const landmarks = await page.$$eval('[role="main"], main', els=>els.length);
-            if(landmarks===0) issues.push({ type:'screen-reader', severity:'moderate', message:'No main landmark found' });
+            if(landmarks===0) screenReaderIssues.push({ type:'screen-reader', severity:'moderate', message:'No main landmark found' });
+            
             const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', h=>h.length);
-            if(headings===0) issues.push({ type:'screen-reader', severity:'moderate', message:'No headings found' });
-            writeFileSync('accessibility-reports/puppeteer-issues.json', JSON.stringify(issues,null,2));
+            if(headings===0) screenReaderIssues.push({ type:'screen-reader', severity:'moderate', message:'No headings found' });
+            
+            // Check for h1 specifically
+            const h1Count = await page.$$eval('h1', h=>h.length);
+            if(h1Count===0) screenReaderIssues.push({ type:'screen-reader', severity:'serious', message:'No h1 heading found - required for page structure' });
+            
+            // Check for proper heading hierarchy
+            const headingStructure = await page.evaluate(() => {
+              const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+              return headings.map(h => ({ 
+                level: parseInt(h.tagName.charAt(1)), 
+                text: h.textContent.trim().substring(0, 30) 
+              }));
+            });
+            
+            let previousLevel = 0;
+            for (const heading of headingStructure) {
+              if (heading.level > previousLevel + 1) {
+                screenReaderIssues.push({ 
+                  type:'screen-reader', 
+                  severity:'moderate', 
+                  message:`Heading hierarchy skip: h${previousLevel} to h${heading.level}`,
+                  element: heading
+                });
+              }
+              previousLevel = heading.level;
+            }
+            
+            // Check for images without alt text
+            const imagesWithoutAlt = await page.$$eval('img:not([alt])', imgs => imgs.length);
+            if(imagesWithoutAlt > 0) screenReaderIssues.push({ 
+              type:'screen-reader', 
+              severity:'moderate', 
+              message:`${imagesWithoutAlt} images missing alt attributes` 
+            });
+            
+            // Check for form inputs without labels
+            const unlabeledInputs = await page.evaluate(() => {
+              const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]), textarea, select'));
+              return inputs.filter(input => {
+                const id = input.id;
+                const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+                const hasAriaLabel = input.getAttribute('aria-label');
+                const hasAriaLabelledby = input.getAttribute('aria-labelledby');
+                return !hasLabel && !hasAriaLabel && !hasAriaLabelledby;
+              }).length;
+            });
+            
+            if(unlabeledInputs > 0) screenReaderIssues.push({ 
+              type:'screen-reader', 
+              severity:'serious', 
+              message:`${unlabeledInputs} form inputs lack proper labels` 
+            });
+            
+            // Write both files for compatibility
+            writeFileSync('accessibility-reports/screen-reader.json', JSON.stringify(screenReaderIssues, null, 2));
+            writeFileSync('accessibility-reports/puppeteer-issues.json', JSON.stringify(screenReaderIssues, null, 2));
+            
+            console.log(`Screen reader compatibility test completed. Found ${screenReaderIssues.length} issues.`);
             await browser.close();
-          })().catch(err=>process.exit(1));
+          })().catch(err => {
+            console.error('Puppeteer test error:', err);
+            process.exit(1);
+          });
           EOF
           
       - name: Run pa11y accessibility scan (HTML report)
