@@ -207,9 +207,22 @@ jobs:
             echo "📋 **pa11y Issues:** Report generation failed" >> scan-summary.txt
           fi
           
-          # Check axe-core results  
+          # Check axe-core results with debugging
           if [ -f accessibility-reports/axe-report.json ]; then
-            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq '.violations | length' 2>/dev/null || echo "0")
+            echo "DEBUG: axe-report.json exists, checking structure..."
+            # Check if it's an array or object with violations property
+            AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if type == "array" then .[0].violations | length else .violations | length end' 2>/dev/null || echo "0")
+            
+            # If still 0, try alternative structures
+            if [ "$AXE_COUNT" = "0" ]; then
+              AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if has("testResults") then .testResults[0].violations | length else empty end' 2>/dev/null || echo "0")
+            fi
+            
+            # If still 0, try to count any violation-like objects
+            if [ "$AXE_COUNT" = "0" ]; then
+              AXE_COUNT=$(cat accessibility-reports/axe-report.json | jq -r '[.. | objects | select(has("id") and has("impact") and has("nodes"))] | length' 2>/dev/null || echo "0")
+            fi
+            
             echo "🔧 **axe-core Violations:** $AXE_COUNT" >> scan-summary.txt
             TOTAL_ISSUES=$((TOTAL_ISSUES + AXE_COUNT))
           else
@@ -219,6 +232,18 @@ jobs:
           # Check Lighthouse results
           if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
             LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
+            
+            # Debug Lighthouse accessibility audits
+            echo "DEBUG: Lighthouse accessibility details:"
+            FAILED_AUDITS=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | .key' 2>/dev/null | wc -l || echo "0")
+            echo "DEBUG: Lighthouse failed audits count: $FAILED_AUDITS"
+            
+            # List some specific failed audits for debugging
+            if [ "$FAILED_AUDITS" -gt "0" ]; then
+              echo "DEBUG: Some failed Lighthouse audits:"
+              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | "\(.key): \(.value.title)"' 2>/dev/null | head -5 || true
+            fi
+            
             echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE%" >> scan-summary.txt
           else
             echo "💡 **Lighthouse Score:** Report generation failed" >> scan-summary.txt
