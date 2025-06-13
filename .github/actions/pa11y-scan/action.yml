@@ -92,8 +92,9 @@ runs:
           IGNORE_RULES="${IGNORE_RULES:1}" # Remove leading comma
         fi
         
-        # Create pa11y config file
-        cat > pa11y-config.json << EOF
+        # Create pa11y config file with proper JSON formatting
+        if [ -n "$IGNORE_RULES" ]; then
+          cat > pa11y-config.json << EOF
         {
           "chromeLaunchConfig": {
             "args": [$CHROME_ARGS]
@@ -101,9 +102,23 @@ runs:
           "timeout": ${{ inputs.timeout }},
           "wait": ${{ inputs.wait }},
           "standard": "${{ inputs.standard }}",
-          "runners": ["htmlcs"]$(if [ -n "$IGNORE_RULES" ]; then echo ",\"ignore\": [$IGNORE_RULES]"; fi)
+          "runners": ["htmlcs"],
+          "ignore": [$IGNORE_RULES]
         }
         EOF
+        else
+          cat > pa11y-config.json << EOF
+        {
+          "chromeLaunchConfig": {
+            "args": [$CHROME_ARGS]
+          },
+          "timeout": ${{ inputs.timeout }},
+          "wait": ${{ inputs.wait }},
+          "standard": "${{ inputs.standard }}",
+          "runners": ["htmlcs"]
+        }
+        EOF
+        fi
         
         echo "Created pa11y configuration:"
         cat pa11y-config.json
