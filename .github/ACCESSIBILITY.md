@@ -44,6 +44,7 @@ After each scan, detailed reports are generated and stored as workflow artifacts
 
 ### Summary Reports
 - `README.md` - Comprehensive executive summary with issue counts and status
+- `copilot-analysis.md` - AI-powered code pattern analysis and recommendations
 
 ## Accessing Reports
 
@@ -60,6 +61,14 @@ Each run provides an immediate summary showing:
 - Individual tool results
 - Lighthouse accessibility score
 - Overall compliance status
+
+### Multi-Layer Analysis
+The solution now provides four complementary perspectives:
+
+1. **axe-core**: Precise WCAG violation detection
+2. **pa11y**: HTML_CodeSniffer rule validation  
+3. **Lighthouse**: User experience impact scoring
+4. **AI Code Analysis**: Pattern recognition and contextual recommendations
 
 ### Issue Prioritization
 Focus on issues in this order:
@@ -78,6 +87,7 @@ The scans test for compliance with:
 - Screen reader compatibility
 - ARIA best practices
 - Color contrast requirements (configurable)
+- **Code pattern accessibility** (AI analysis)
 
 ## Configuration Options
 

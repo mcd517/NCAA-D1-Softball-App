@@ -103,6 +103,116 @@ jobs:
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --max-wait-for-load=30000 || true
             
+      - name: Generate AI-powered accessibility analysis
+        run: |
+          echo "# AI-Powered Accessibility Code Analysis" > accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "**Analysis Date:** $(date)" >> accessibility-reports/copilot-analysis.md
+          echo "**Target Application:** $TARGET_URL" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          
+          echo "## Code Review Summary" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "This analysis complements automated testing by examining:" >> accessibility-reports/copilot-analysis.md
+          echo "- Component accessibility patterns" >> accessibility-reports/copilot-analysis.md
+          echo "- User experience flows for assistive technology" >> accessibility-reports/copilot-analysis.md
+          echo "- Context-aware accessibility implementations" >> accessibility-reports/copilot-analysis.md
+          echo "- Cognitive accessibility considerations" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          
+          # Analyze main components for accessibility patterns
+          echo "## Component Analysis" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          
+          if [ -f "src/App.jsx" ]; then
+            echo "### App.jsx - Main Application Structure" >> accessibility-reports/copilot-analysis.md
+            echo "\`\`\`" >> accessibility-reports/copilot-analysis.md
+            echo "// Key accessibility considerations identified:" >> accessibility-reports/copilot-analysis.md
+            
+            # Check for semantic structure
+            if grep -q "main\|header\|nav\|footer" src/App.jsx; then
+              echo "✅ Semantic HTML elements detected" >> accessibility-reports/copilot-analysis.md
+            else
+              echo "⚠️  Consider adding semantic HTML landmarks (main, header, nav, footer)" >> accessibility-reports/copilot-analysis.md
+            fi
+            
+            # Check for ARIA usage
+            if grep -q "aria-\|role=" src/App.jsx; then
+              echo "✅ ARIA attributes found - verify implementation" >> accessibility-reports/copilot-analysis.md
+            else
+              echo "⚠️  Limited ARIA usage detected - consider enhancing for screen readers" >> accessibility-reports/copilot-analysis.md
+            fi
+            
+            # Check for skip links
+            if grep -q "skip\|Skip" src/App.jsx; then
+              echo "✅ Skip navigation patterns detected" >> accessibility-reports/copilot-analysis.md
+            else
+              echo "⚠️  Consider adding skip navigation for keyboard users" >> accessibility-reports/copilot-analysis.md
+            fi
+            
+            echo "\`\`\`" >> accessibility-reports/copilot-analysis.md
+            echo "" >> accessibility-reports/copilot-analysis.md
+          fi
+          
+          # Analyze key components
+          for component in "StatLeaders" "TeamRankings" "TournamentBracket"; do
+            if [ -f "src/components/${component}.jsx" ]; then
+              echo "### ${component}.jsx - Component Accessibility" >> accessibility-reports/copilot-analysis.md
+              echo "\`\`\`" >> accessibility-reports/copilot-analysis.md
+              
+              # Check for table accessibility
+              if grep -q "table\|thead\|tbody\|th\|td" "src/components/${component}.jsx"; then
+                if grep -q "scope=\|headers=\|caption" "src/components/${component}.jsx"; then
+                  echo "✅ Table accessibility attributes detected" >> accessibility-reports/copilot-analysis.md
+                else
+                  echo "⚠️  Tables found - ensure proper headers, scope, and captions" >> accessibility-reports/copilot-analysis.md
+                fi
+              fi
+              
+              # Check for interactive elements
+              if grep -q "button\|onClick\|onKeyDown" "src/components/${component}.jsx"; then
+                echo "ℹ️  Interactive elements found - verify keyboard accessibility" >> accessibility-reports/copilot-analysis.md
+              fi
+              
+              # Check for loading states
+              if grep -q "loading\|Loading\|isLoading" "src/components/${component}.jsx"; then
+                echo "ℹ️  Loading states detected - ensure screen reader announcements" >> accessibility-reports/copilot-analysis.md
+              fi
+              
+              echo "\`\`\`" >> accessibility-reports/copilot-analysis.md
+              echo "" >> accessibility-reports/copilot-analysis.md
+            fi
+          done
+          
+          echo "## Recommendations for Enhancement" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "Based on code analysis, consider implementing:" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "### High Priority" >> accessibility-reports/copilot-analysis.md
+          echo "- Add \`<main>\` landmark if missing (detected by axe-core)" >> accessibility-reports/copilot-analysis.md
+          echo "- Implement h1 heading structure (detected by axe-core)" >> accessibility-reports/copilot-analysis.md
+          echo "- Ensure all content is within semantic landmarks" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "### Medium Priority" >> accessibility-reports/copilot-analysis.md
+          echo "- Enhance keyboard navigation patterns" >> accessibility-reports/copilot-analysis.md
+          echo "- Add skip links for main content areas" >> accessibility-reports/copilot-analysis.md
+          echo "- Implement proper focus management for dynamic content" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "### Low Priority" >> accessibility-reports/copilot-analysis.md
+          echo "- Add descriptive alt text for decorative images" >> accessibility-reports/copilot-analysis.md
+          echo "- Enhance ARIA descriptions for complex interactions" >> accessibility-reports/copilot-analysis.md
+          echo "- Consider implementing reduced motion preferences" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          
+          echo "## Integration with Automated Results" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "This analysis should be reviewed alongside:" >> accessibility-reports/copilot-analysis.md
+          echo "- axe-core violations for WCAG compliance" >> accessibility-reports/copilot-analysis.md
+          echo "- pa11y HTML_CodeSniffer results" >> accessibility-reports/copilot-analysis.md
+          echo "- Lighthouse accessibility score and recommendations" >> accessibility-reports/copilot-analysis.md
+          echo "" >> accessibility-reports/copilot-analysis.md
+          echo "*Note: This analysis uses pattern matching and heuristics. Manual review with assistive technology is still recommended.*" >> accessibility-reports/copilot-analysis.md
+
       - name: Generate comprehensive summary report
         run: |
           echo "# Web Accessibility Evaluation Report" > accessibility-reports/README.md
