@@ -187,7 +187,6 @@ jobs:
           timeout: 30000
           report-dir: ${{ env.REPORT_DIR }}
           fail-on-violations: false
-        continue-on-error: true
 
       - name: Run Pa11y scan
         if: matrix.tool == 'pa11y'
@@ -200,7 +199,6 @@ jobs:
           reporters: 'json,html,csv'
           report-dir: ${{ env.REPORT_DIR }}
           fail-on-issues: false
-        continue-on-error: true
 
       - name: Run Lighthouse scan
         if: matrix.tool == 'lighthouse'
@@ -212,7 +210,6 @@ jobs:
           timeout: 30000
           report-dir: ${{ env.REPORT_DIR }}
           fail-on-score: false
-        continue-on-error: true
 
       - name: Run Playwright scan
         if: matrix.tool == 'playwright'
@@ -225,7 +222,6 @@ jobs:
           timeout: 30000
           report-dir: ${{ env.REPORT_DIR }}
           fail-on-violations: false
-        continue-on-error: true
 
       # Upload individual tool reports as artifacts
       - name: Upload scan reports

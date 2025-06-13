@@ -64,7 +64,10 @@ runs:
         
         REPORT_PATH="${{ inputs.report-dir }}/axe-report.json"
         
-        # Run axe scan with error handling
+        # Run axe scan with error handling - match comprehensive workflow approach
+        echo "Running axe-core scan with standards: ${{ inputs.standards }}"
+        
+        # Use the same approach as comprehensive workflow
         if npx axe ${{ inputs.target-url }} \
           --save "$REPORT_PATH" \
           --timeout ${{ inputs.timeout }} \
@@ -73,8 +76,9 @@ runs:
           echo "✅ Axe scan completed successfully"
           SCAN_STATUS="passed"
         else
-          echo "⚠️ Axe scan completed with issues"
-          SCAN_STATUS="failed"
+          echo "⚠️ Axe scan encountered issues but may have partial results"
+          SCAN_STATUS="completed_with_issues"
+          # Don't exit here - check if we got a report file with results
         fi
         
         # Count violations if report exists
