@@ -43,7 +43,7 @@ jobs:
             --timeout 30000 \
             --wait 3000 \
             --ignore "color-contrast" \
-            --chrome-flags "--no-sandbox --disable-dev-shm-usage" > accessibility-reports/pa11y-report.html || true
+            --chromium-args="--no-sandbox --disable-dev-shm-usage" > accessibility-reports/pa11y-report.html || true
 
           pa11y $TARGET_URL \
             --reporter json \
@@ -51,7 +51,7 @@ jobs:
             --timeout 30000 \
             --wait 3000 \
             --ignore "color-contrast" \
-            --chrome-flags "--no-sandbox --disable-dev-shm-usage" > accessibility-reports/pa11y-report.json || true
+            --chromium-args="--no-sandbox --disable-dev-shm-usage" > accessibility-reports/pa11y-report.json || true
             
       - name: Run axe-core accessibility scan
         run: |
