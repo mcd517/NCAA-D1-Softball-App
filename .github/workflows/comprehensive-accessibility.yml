@@ -42,21 +42,23 @@ jobs:
             --standard WCAG2AA \
             --timeout 30000 \
             --wait 3000 \
-            --ignore "color-contrast" > accessibility-reports/pa11y-report.html || true
-            
+            --ignore "color-contrast" \
+            --chrome-launcher-flags="--no-sandbox" > accessibility-reports/pa11y-report.html || true
+
           pa11y $TARGET_URL \
             --reporter json \
             --standard WCAG2AA \
             --timeout 30000 \
             --wait 3000 \
-            --ignore "color-contrast" > accessibility-reports/pa11y-report.json || true
+            --ignore "color-contrast" \
+            --chrome-launcher-flags="--no-sandbox" > accessibility-reports/pa11y-report.json || true
             
       - name: Run axe-core accessibility scan
         run: |
           echo "Running axe-core scan..."
           npx axe $TARGET_URL \
             --save accessibility-reports/axe-report.json \
-            --reporter v2 \
+            --format json \
             --timeout 30000 || true
             
       - name: Run Lighthouse accessibility audit
