@@ -47,10 +47,10 @@ runs:
           ~/.npm
           ~/.cache/puppeteer
           ~/.cache/ms-playwright
-        key: accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-${{ hashFiles('**/package-lock.json') }}
+        key: accessibility-tools-${{ runner.os }}-${{ hashFiles(inputs.tools) }}-${{ hashFiles('**/package-lock.json') }}
         restore-keys: |
-          accessibility-tools-${{ runner.os }}-${{ inputs.tools }}-
           accessibility-tools-${{ runner.os }}-
+          accessibility-tools-
 
     - name: Install accessibility testing tools
       shell: bash
