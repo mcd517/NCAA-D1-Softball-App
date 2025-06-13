@@ -542,6 +542,106 @@ jobs:
           echo "Generated accessibility reports:"
           ls -la accessibility-reports/
           
+          # Verify all expected files exist
+          echo ""
+          echo "=== ARTIFACT CONTENT VERIFICATION ==="
+          echo "Checking for required files before upload:"
+          
+          # Check each expected file
+          FILES_FOUND=0
+          EXPECTED_FILES=0
+          
+          # Core reports
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/axe-report.json ]; then
+            echo "✅ axe-report.json ($(wc -c < accessibility-reports/axe-report.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ axe-report.json missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/pa11y-report.json ]; then
+            echo "✅ pa11y-report.json ($(wc -c < accessibility-reports/pa11y-report.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ pa11y-report.json missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/pa11y-report.html ]; then
+            echo "✅ pa11y-report.html ($(wc -c < accessibility-reports/pa11y-report.html) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ pa11y-report.html missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
+            echo "✅ lighthouse-accessibility.report.json ($(wc -c < accessibility-reports/lighthouse-accessibility.report.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ lighthouse-accessibility.report.json missing"
+          fi
+          
+          # New test reports
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/keyboard-navigation.json ]; then
+            echo "✅ keyboard-navigation.json ($(wc -c < accessibility-reports/keyboard-navigation.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ keyboard-navigation.json missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/screen-reader.json ]; then
+            echo "✅ screen-reader.json ($(wc -c < accessibility-reports/screen-reader.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ screen-reader.json missing"
+          fi
+          
+          # Generated files
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/README.md ]; then
+            echo "✅ README.md ($(wc -c < accessibility-reports/README.md) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ README.md missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/issue-summary.json ]; then
+            echo "✅ issue-summary.json ($(wc -c < accessibility-reports/issue-summary.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ issue-summary.json missing"
+          fi
+          
+          EXPECTED_FILES=$((EXPECTED_FILES + 1))
+          if [ -f accessibility-reports/baseline-metadata.json ]; then
+            echo "✅ baseline-metadata.json ($(wc -c < accessibility-reports/baseline-metadata.json) bytes)"
+            FILES_FOUND=$((FILES_FOUND + 1))
+          else
+            echo "❌ baseline-metadata.json missing"
+          fi
+          
+          echo ""
+          echo "=== SUMMARY ==="
+          echo "Files found: $FILES_FOUND / $EXPECTED_FILES"
+          echo "Directory size: $(du -sh accessibility-reports/ | cut -f1)"
+          
+          if [ "$FILES_FOUND" -eq "0" ]; then
+            echo "🚨 CRITICAL: No files found - artifact upload will fail!"
+            echo "Creating minimal artifact to prevent upload failure..."
+            echo "No accessibility reports were generated due to tool failures." > accessibility-reports/error.txt
+            echo "Check the workflow logs for specific error details." >> accessibility-reports/error.txt
+          elif [ "$FILES_FOUND" -lt "$EXPECTED_FILES" ]; then
+            echo "⚠️  WARNING: Some files missing - artifact will be incomplete"
+          else
+            echo "✅ SUCCESS: All expected files present"
+          fi
+          
       - name: Upload accessibility reports as baseline
         uses: actions/upload-artifact@v4
         with:
