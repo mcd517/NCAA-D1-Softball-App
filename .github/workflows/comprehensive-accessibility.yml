@@ -75,8 +75,8 @@ jobs:
           echo "Running axe-core scan..."
           npx axe $TARGET_URL \
             --save accessibility-reports/axe-report.json \
-            --format json \
-            --timeout 30000 || true
+            --timeout 30000 \
+            --chrome-options="no-sandbox,disable-dev-shm-usage" || true
             
       - name: Run Lighthouse accessibility audit
         run: |
