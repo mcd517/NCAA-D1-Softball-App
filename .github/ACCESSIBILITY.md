@@ -18,6 +18,8 @@ Each tool provides different perspectives on accessibility compliance:
 - **pa11y**: HTML_CodeSniffer-based testing with different rule interpretations
 - **Lighthouse**: Google's weighted scoring algorithm focusing on user experience impact
 
+**Important Note**: Lighthouse uses a weighted scoring system where some critical accessibility audits (like `landmark-one-main`) are hidden from the final score. Our workflow extracts and reports these hidden audit results to provide complete coverage.
+
 This comprehensive approach ensures broader coverage than any single tool could provide.
 
 ## Schedule

@@ -69,7 +69,7 @@ jobs:
       - name: Run pa11y accessibility scan (JSON report)
         run: |
           echo "Running pa11y scan for JSON report..."
-          pa11y $TARGET_URL --reporter json --config pa11y.json > accessibility-reports/pa11y-report.json || true
+          pa11y $TARGET_URL --reporter json --config pa11y.json --include-warnings --include-notices > accessibility-reports/pa11y-report.json || true
           echo "DEBUG: pa11y JSON scan completed, checking content:"
           echo "File size: $(wc -c < accessibility-reports/pa11y-report.json 2>/dev/null || echo '0') bytes"
           echo "First few lines of JSON:"
@@ -78,7 +78,7 @@ jobs:
       - name: Run pa11y accessibility scan (CSV report)
         run: |
           echo "Running pa11y scan for CSV report..."
-          pa11y $TARGET_URL --reporter csv --config pa11y.json > accessibility-reports/pa11y-report.csv || true
+          pa11y $TARGET_URL --reporter csv --config pa11y.json --include-warnings --include-notices > accessibility-reports/pa11y-report.csv || true
           echo "DEBUG: pa11y CSV scan completed, checking content:"
           echo "File size: $(wc -c < accessibility-reports/pa11y-report.csv 2>/dev/null || echo '0') bytes"
           echo "CSV content preview:"
@@ -357,6 +357,17 @@ jobs:
           if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
             LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
             
+            # Check for hidden audits that might have failed
+            echo "DEBUG: Checking Lighthouse hidden audits..."
+            LIGHTHOUSE_HIDDEN_FAILURES=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | .key' 2>/dev/null | wc -l || echo "0")
+            echo "DEBUG: Lighthouse hidden failures: $LIGHTHOUSE_HIDDEN_FAILURES"
+            
+            # List specific hidden failures
+            if [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ]; then
+              echo "DEBUG: Lighthouse hidden audit failures:"
+              cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score == 0 and .value.scoreDisplayMode == "binary") | "\(.key): \(.value.title)"' 2>/dev/null | head -5 || true
+            fi
+            
             # Debug Lighthouse accessibility audits
             echo "DEBUG: Lighthouse accessibility details:"
             FAILED_AUDITS=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits | to_entries[] | select(.value.score != null and .value.score < 1) | .key' 2>/dev/null | wc -l || echo "0")
@@ -369,6 +380,12 @@ jobs:
             fi
             
             echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE%" >> scan-summary.txt
+            echo "💡 **Lighthouse Hidden Issues:** $LIGHTHOUSE_HIDDEN_FAILURES" >> scan-summary.txt
+            
+            # Add Lighthouse interpretation
+            if [ "$LIGHTHOUSE_SCORE" = "100" ] && [ "$LIGHTHOUSE_HIDDEN_FAILURES" -gt "0" ]; then
+              echo "⚠️ **Note:** Lighthouse's 100% score excludes $LIGHTHOUSE_HIDDEN_FAILURES structural violations that don't affect its weighted scoring algorithm" >> scan-summary.txt
+            fi
           else
             echo "💡 **Lighthouse Score:** Report generation failed" >> scan-summary.txt
           fi
