@@ -114,10 +114,14 @@ jobs:
           # Set outputs
           echo "target-url=$TARGET_URL" >> $GITHUB_OUTPUT
           echo "standards=$STANDARDS" >> $GITHUB_OUTPUT
-          echo "tools=$TOOLS" >> $GITHUB_OUTPUT
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "thresholds=$THRESHOLDS" >> $GITHUB_OUTPUT
+          echo "tools=$TOOLS" >> $GITHUB_OUTPUT
           echo "matrix-tools=$MATRIX_TOOLS" >> $GITHUB_OUTPUT
+          
+          # Output thresholds as multiline string using EOF delimiter
+          echo "thresholds<<EOF" >> $GITHUB_OUTPUT
+          echo "$THRESHOLDS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   # Job 2: Tool Setup (runs once, cached for all scan jobs)
   setup-tools:
