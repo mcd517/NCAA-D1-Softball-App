@@ -253,389 +253,144 @@ runs:
           ESTIMATED_FIX_HOURS=1
         fi
         
-        # Create comprehensive HTML dashboard
-        cat > "$DASHBOARD_PATH" << 'EOF'
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Enterprise Accessibility Scan Dashboard</title>
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    line-height: 1.6;
-                    margin: 0;
-                    padding: 20px;
-                    background-color: #f5f5f5;
-                }
-                .container {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    background: white;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    overflow: hidden;
-                }
-                .header {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                }
-                .header h1 {
-                    margin: 0;
-                    font-size: 2.5em;
-                }
-                .status-passed { color: #22c55e; }
-                .status-failed { color: #ef4444; }
-                .executive-summary {
-                    background: #f8f9fa;
-                    border-left: 4px solid #007bff;
-                    padding: 20px;
-                    margin: 20px;
-                    border-radius: 0 8px 8px 0;
-                }
-                .metrics {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 20px;
-                    padding: 30px;
-                }
-                .metric-card {
-                    background: #f8fafc;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 8px;
-                    padding: 20px;
-                    text-align: center;
-                }
-                .metric-card h3 {
-                    margin-top: 0;
-                    color: #374151;
-                }
-                .metric-value {
-                    font-size: 2em;
-                    font-weight: bold;
-                    margin: 10px 0;
-                }
-                .metric-value.good { color: #22c55e; }
-                .metric-value.warning { color: #f59e0b; }
-                .metric-value.error { color: #ef4444; }
-                .business-impact {
-                    background: #fef9e7;
-                    border: 1px solid #f59e0b;
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin: 20px;
-                }
-                .risk-high { color: #dc2626; font-weight: bold; }
-                .risk-medium { color: #f59e0b; font-weight: bold; }
-                .risk-low { color: #16a34a; font-weight: bold; }
-                .details {
-                    padding: 30px;
-                    border-top: 1px solid #e2e8f0;
-                }
-                .tool-section {
-                    margin-bottom: 30px;
-                    padding: 20px;
-                    background: #f8fafc;
-                    border-radius: 8px;
-                }
-                .tool-section h3 {
-                    margin-top: 0;
-                    color: #374151;
-                    border-bottom: 2px solid #e2e8f0;
-                    padding-bottom: 10px;
-                }
-                .recommendations {
-                    background: #fef3c7;
-                    border: 1px solid #f59e0b;
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin-top: 30px;
-                }
-                .recommendations h3 {
-                    color: #92400e;
-                    margin-top: 0;
-                }
-                .developer-section {
-                    background: #f0f9ff;
-                    border: 1px solid #0ea5e9;
-                    border-radius: 8px;
-                    padding: 20px;
-                    margin: 20px;
-                }
-                .footer {
-                    background: #374151;
-                    color: white;
-                    padding: 20px;
-                    text-align: center;
-                    font-size: 0.9em;
-                }
-                .scan-reliability {
-                    font-size: 0.9em;
-                    color: #6b7280;
-                    margin-top: 10px;
-                }
-                .tabs {
-                    display: flex;
-                    border-bottom: 1px solid #e2e8f0;
-                    margin: 0 20px;
-                }
-                .tab-button {
-                    background: none;
-                    border: none;
-                    padding: 15px 25px;
-                    cursor: pointer;
-                    border-bottom: 2px solid transparent;
-                    font-weight: 500;
-                }
-                .tab-button.active {
-                    border-bottom-color: #007bff;
-                    color: #007bff;
-                }
-                .tab-content {
-                    display: none;
-                    padding: 20px;
-                }
-                .tab-content.active {
-                    display: block;
-                }
-            </style>
-            <script>
-                function showTab(tabName) {
-                    // Hide all tab contents
-                    document.querySelectorAll('.tab-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    // Remove active class from all buttons
-                    document.querySelectorAll('.tab-button').forEach(button => {
-                        button.classList.remove('active');
-                    });
-                    // Show selected tab and mark button as active
-                    document.getElementById(tabName).classList.add('active');
-                    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
-                }
-                // Set default tab on load
-                window.onload = function() {
-                    showTab('executive');
-                }
-            </script>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🔍 Enterprise Accessibility Scan Dashboard</h1>
-                    <p><strong>Target:</strong> ${{ inputs.target-url }}</p>
-                    <p><strong>Standards:</strong> ${{ inputs.standards }}</p>
-                    <p><strong>Scan Date:</strong> $(date)</p>
-                    <h2 class="status-$OVERALL_STATUS">Status: $(echo "$OVERALL_STATUS" | tr '[:lower:]' '[:upper:]')</h2>
-                    <div class="scan-reliability">
-                        Scan Reliability: $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "High (${SCAN_QUALITY_SCORE}%)" || echo "Medium (${SCAN_QUALITY_SCORE}%)")
-                    </div>
-                </div>
-                
-                <div class="tabs">
-                    <button class="tab-button active" onclick="showTab('executive')">👔 Executive Summary</button>
-                    <button class="tab-button" onclick="showTab('developer')">👨‍💻 Developer Details</button>
-                    <button class="tab-button" onclick="showTab('tools')">🔧 Tool Results</button>
-                </div>
-                
-                <!-- Executive Summary Tab -->
-                <div id="executive" class="tab-content active">
-                    <div class="executive-summary">
-                        <h2>📊 Business Impact Assessment</h2>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                            <div>
-                                <strong>Compliance Risk:</strong> 
-                                <span class="risk-$(echo "$COMPLIANCE_RISK" | tr '[:upper:]' '[:lower:]')">$COMPLIANCE_RISK</span>
-                            </div>
-                            <div>
-                                <strong>Estimated User Impact:</strong> $ESTIMATED_USER_IMPACT% of users with disabilities
-                            </div>
-                            <div>
-                                <strong>Estimated Fix Time:</strong> $ESTIMATED_FIX_HOURS hours
-                            </div>
-                            <div>
-                                <strong>Business Ready:</strong> $([ "$TOTAL_ISSUES" -eq "0" ] && echo "✅ Yes" || echo "❌ No")
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="metrics">
-                        <div class="metric-card">
-                            <h3>🚨 Total Issues</h3>
-                            <div class="metric-value $([ "$TOTAL_ISSUES" -eq "0" ] && echo "good" || echo "error")">$TOTAL_ISSUES</div>
-                            <div>$([ "$TOTAL_ISSUES" -eq "0" ] && echo "Ready for Production" || echo "Action Required")</div>
-                        </div>
-                        <div class="metric-card">
-                            <h3>⚡ Critical Violations</h3>
-                            <div class="metric-value $([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "good" || echo "error")">$CRITICAL_VIOLATIONS</div>
-                            <div>$([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "WCAG Compliant" || echo "Blocks Users")</div>
-                        </div>
-                        <div class="metric-card">
-                            <h3>💡 Accessibility Score</h3>
-                            <div class="metric-value $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "good" || ([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 70" | bc -l)" -eq "1" ] && echo "warning" || echo "error"))">${AVERAGE_LIGHTHOUSE_SCORE}%</div>
-                            <div>Industry Standard: 90%+</div>
-                        </div>
-                        <div class="metric-card">
-                            <h3>⏱️ Fix Investment</h3>
-                            <div class="metric-value $([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "good" || ([ "$ESTIMATED_FIX_HOURS" -le "8" ] && echo "warning" || echo "error"))">$ESTIMATED_FIX_HOURS hrs</div>
-                            <div>Development Time</div>
-                        </div>
-                    </div>
-                    
-                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'EXEC_RECOMMENDATIONS'
-                    <div class="business-impact">
-                        <h3>📈 Business Recommendations</h3>
-                        <ul>
-                            <li><strong>Legal Compliance:</strong> $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "HIGH RISK - ADA/Section 508 violations present" || echo "COMPLIANT - No critical violations")</li>
-                            <li><strong>User Access:</strong> $ESTIMATED_USER_IMPACT% of users with disabilities may face barriers</li>
-                            <li><strong>Market Opportunity:</strong> $([ "$TOTAL_ISSUES" -eq "0" ] && echo "15% larger addressable market with full accessibility" || echo "Excluding 15% of potential users")</li>
-                            <li><strong>Implementation Cost:</strong> $ESTIMATED_FIX_HOURS hours @ developer rates = estimated cost</li>
-                            <li><strong>ROI Timeline:</strong> $([ "$ESTIMATED_FIX_HOURS" -le "8" ] && echo "Quick wins available - implement within 1 sprint" || echo "Major investment - plan 2-3 sprints")</li>
-                        </ul>
-                    </div>
-                    EXEC_RECOMMENDATIONS
-                    )
-                </div>
-                
-                <!-- Developer Details Tab -->
-                <div id="developer" class="tab-content">
-                    <div class="developer-section">
-                        <h2>🔧 Technical Implementation Guide</h2>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                            <div>
-                                <strong>Primary Focus:</strong> $([ "$CRITICAL_VIOLATIONS" -gt "0" ] && echo "Fix WCAG violations first" || echo "Enhance user experience")
-                            </div>
-                            <div>
-                                <strong>Testing Strategy:</strong> $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "Comprehensive scan completed" || echo "Partial scan - rerun recommended")
-                            </div>
-                            <div>
-                                <strong>Validation:</strong> Re-run workflow after fixes
-                            </div>
-                        </div>
-                        
-                        <h3>📂 Files Requiring Changes</h3>
-                        <ul>
-                            <li><code>src/App.jsx</code> - Main application structure, landmarks</li>
-                            <li><code>src/components/*.jsx</code> - Component-level accessibility</li>
-                            <li><code>src/**/*.css</code> - Focus indicators, color contrast</li>
-                            <li><code>public/index.html</code> - Document metadata, lang attribute</li>
-                        </ul>
-                        
-                        <h3>🔍 Debugging Information</h3>
-                        <ul>
-                            <li><strong>Axe-core:</strong> $([ "${{ inputs.axe-violations }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
-                            <li><strong>Pa11y:</strong> $([ "${{ inputs.pa11y-issues }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
-                            <li><strong>Lighthouse:</strong> $([ "${{ inputs.lighthouse-desktop-score }}" != "0" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
-                            <li><strong>Playwright:</strong> $([ "${{ inputs.playwright-violations }}" != "" ] && echo "Completed successfully" || echo "⚠️ Tool execution issue")</li>
-                        </ul>
-                        
-                        $([ "$SCAN_QUALITY_SCORE" -lt "75" ] && cat << 'DEV_WARNING'
-                        <div style="background: #fef2f2; border: 1px solid #ef4444; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <strong>⚠️ Scan Quality Notice:</strong> Some tools failed to complete. Consider re-running the workflow for comprehensive results.
-                        </div>
-                        DEV_WARNING
-                        )
-                    </div>
-                    
-                    <div class="metrics">
-                        <div class="metric-card">
-                            <h3>⚡ Axe Violations</h3>
-                            <div class="metric-value $([ "${{ inputs.axe-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.axe-violations }}</div>
-                            <small>WCAG 2.1 AA Compliance</small>
-                        </div>
-                        <div class="metric-card">
-                            <h3>📝 Pa11y Issues</h3>
-                            <div class="metric-value $([ "${{ inputs.pa11y-issues }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.pa11y-issues }}</div>
-                            <small>Content & Markup Analysis</small>
-                        </div>
-                        <div class="metric-card">
-                            <h3>💡 Lighthouse Desktop</h3>
-                            <div class="metric-value $([ "$(echo "${{ inputs.lighthouse-desktop-score }} >= 90" | bc -l)" -eq "1" ] && echo "good" || echo "warning")">${{ inputs.lighthouse-desktop-score }}%</div>
-                            <small>Desktop Performance</small>
-                        </div>
-                        <div class="metric-card">
-                            <h3>📱 Lighthouse Mobile</h3>
-                            <div class="metric-value $([ "$(echo "${{ inputs.lighthouse-mobile-score }} >= 90" | bc -l)" -eq "1" ] && echo "good" || echo "warning")">${{ inputs.lighthouse-mobile-score }}%</div>
-                            <small>Mobile Performance</small>
-                        </div>
-                        <div class="metric-card">
-                            <h3>🎭 Playwright Violations</h3>
-                            <div class="metric-value $([ "${{ inputs.playwright-violations }}" -eq "0" ] && echo "good" || echo "error")">${{ inputs.playwright-violations }}</div>
-                            <small>End-to-End Testing</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Tool Results Tab -->
-                <div id="tools" class="tab-content">
-                <!-- Tool Results Tab -->
-                <div id="tools" class="tab-content">
-                    <h2>📊 Detailed Results by Tool</h2>
-                    
-                    <div class="tool-section">
-                        <h3>🔧 Axe-core (WCAG Compliance) - $([ "${{ inputs.axe-violations }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
-                        <p><strong>Violations Found:</strong> ${{ inputs.axe-violations }}</p>
-                        <p><strong>Purpose:</strong> Tests for WCAG 2.1 compliance and finds specific accessibility violations that need to be fixed.</p>
-                        <p><strong>File Location:</strong> <code>axe-report.json</code></p>
-                        $([ "${{ inputs.axe-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review axe-report.json for specific violations and fix them.</p>" || echo "<p>✅ <strong>Passed:</strong> No WCAG violations detected.</p>")
-                        $([ "${{ inputs.axe-violations }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Axe-core scan did not complete successfully. Check workflow logs.</p>")
-                    </div>
-                    
-                    <div class="tool-section">
-                        <h3>📋 Pa11y (Content Analysis) - $([ "${{ inputs.pa11y-issues }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
-                        <p><strong>Issues Found:</strong> ${{ inputs.pa11y-issues }}</p>
-                        <p><strong>Purpose:</strong> Analyzes page content for accessibility issues including missing alt text, improper headings, and color contrast problems.</p>
-                        <p><strong>File Location:</strong> <code>pa11y-report.html</code>, <code>pa11y-report.json</code></p>
-                        $([ "${{ inputs.pa11y-issues }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review pa11y-report.html for detailed issue locations.</p>" || echo "<p>✅ <strong>Passed:</strong> No content issues detected.</p>")
-                        $([ "${{ inputs.pa11y-issues }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Pa11y scan did not complete successfully. Check workflow logs.</p>")
-                    </div>
-                    
-                    <div class="tool-section">
-                        <h3>💡 Lighthouse (Performance & Accessibility) - $([ "${{ inputs.lighthouse-desktop-score }}" != "0" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
-                        <p><strong>Desktop Score:</strong> ${{ inputs.lighthouse-desktop-score }}% | <strong>Mobile Score:</strong> ${{ inputs.lighthouse-mobile-score }}%</p>
-                        <p><strong>Purpose:</strong> Provides overall accessibility scoring and identifies opportunities for improvement.</p>
-                        <p><strong>File Location:</strong> <code>lighthouse-accessibility-desktop.json</code>, <code>lighthouse-accessibility-mobile.json</code></p>
-                        $([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "<p>✅ <strong>Excellent:</strong> High accessibility score achieved.</p>" || echo "<p>⚠️ <strong>Needs Improvement:</strong> Review Lighthouse reports for optimization opportunities.</p>")
-                        $([ "${{ inputs.lighthouse-desktop-score }}" == "0" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Lighthouse scan did not complete successfully. Check workflow logs.</p>")
-                    </div>
-                    
-                    <div class="tool-section">
-                        <h3>🎭 Playwright (End-to-End Testing) - $([ "${{ inputs.playwright-violations }}" != "" ] && echo "✅ Completed" || echo "⚠️ Failed")</h3>
-                        <p><strong>Violations Found:</strong> ${{ inputs.playwright-violations }}</p>
-                        <p><strong>Purpose:</strong> Runs comprehensive end-to-end accessibility tests including keyboard navigation and screen reader compatibility.</p>
-                        <p><strong>File Location:</strong> <code>playwright-results.json</code>, <code>playwright-report/</code></p>
-                        $([ "${{ inputs.playwright-violations }}" -gt "0" ] && echo "<p>❌ <strong>Action Required:</strong> Review Playwright test results for interaction and navigation issues.</p>" || echo "<p>✅ <strong>Passed:</strong> All end-to-end accessibility tests passed.</p>")
-                        $([ "${{ inputs.playwright-violations }}" == "" ] && echo "<p>⚠️ <strong>Tool Issue:</strong> Playwright scan did not complete successfully. Check workflow logs.</p>")
-                    </div>
-                    
-                    $([ "$TOTAL_ISSUES" -gt "0" ] && cat << 'TOOL_RECOMMENDATIONS'
-                    <div class="recommendations">
-                        <h3>🎯 Implementation Priority (Tool-Specific)</h3>
-                        <ol>
-                            <li><strong>Fix Critical Issues First:</strong> Start with axe-core violations as they represent WCAG compliance failures.</li>
-                            <li><strong>Review Content Quality:</strong> Address pa11y issues to improve overall accessibility experience.</li>
-                            <li><strong>Test Interactions:</strong> Resolve Playwright failures to ensure keyboard and screen reader compatibility.</li>
-                            <li><strong>Optimize Performance:</strong> Use Lighthouse recommendations to improve accessibility scores.</li>
-                            <li><strong>Re-scan After Fixes:</strong> Run this workflow again to verify improvements.</li>
-                        </ol>
-                        <p><strong>Priority Order:</strong> Axe violations → Lighthouse structural issues → Pa11y content issues → Playwright interaction issues</p>
-                    </div>
-                    TOOL_RECOMMENDATIONS
-                    )
-                </div>
-                
-                <div class="footer">
-                    <p>Generated on $(date) | Workflow Run: ${{ inputs.workflow-run-number }} | Tools: ${{ inputs.scan-tools }}</p>
-                    <p>Scan Quality: $([ "$SCAN_QUALITY_SCORE" -ge "75" ] && echo "High" || echo "Medium") (${SCAN_QUALITY_SCORE}% of tools completed successfully)</p>
-                    <p>This dashboard aggregates results from multiple accessibility testing tools for comprehensive coverage.</p>
+        # Generate HTML dashboard using external script to avoid YAML template length limits
+        bash -c 'cat > "$1" << "DASHBOARD_EOF"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Accessibility Scan Dashboard</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 2.5em; }
+        .status-passed { color: #22c55e; } .status-failed { color: #ef4444; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; padding: 30px; }
+        .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; text-align: center; }
+        .metric-value { font-size: 2em; font-weight: bold; margin: 10px 0; }
+        .metric-value.good { color: #22c55e; } .metric-value.warning { color: #f59e0b; } .metric-value.error { color: #ef4444; }
+        .tabs { display: flex; border-bottom: 1px solid #e2e8f0; margin: 0 20px; }
+        .tab-button { background: none; border: none; padding: 15px 25px; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; }
+        .tab-button.active { border-bottom-color: #007bff; color: #007bff; }
+        .tab-content { display: none; padding: 20px; } .tab-content.active { display: block; }
+        .executive-summary { background: #f8f9fa; border-left: 4px solid #007bff; padding: 20px; margin: 20px; border-radius: 0 8px 8px 0; }
+        .tool-section { margin-bottom: 30px; padding: 20px; background: #f8fafc; border-radius: 8px; }
+        .footer { background: #374151; color: white; padding: 20px; text-align: center; font-size: 0.9em; }
+    </style>
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+            document.querySelectorAll(".tab-button").forEach(button => button.classList.remove("active"));
+            document.getElementById(tabName).classList.add("active");
+            document.querySelector(`[onclick="showTab(\"${tabName}\")"]`).classList.add("active");
+        }
+        window.onload = function() { showTab("executive"); }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Enterprise Accessibility Scan Dashboard</h1>
+            <p><strong>Target:</strong> $2</p>
+            <p><strong>Standards:</strong> $3</p>
+            <p><strong>Scan Date:</strong> $(date)</p>
+            <h2 class="status-$4">Status: $(echo "$4" | tr "[:lower:]" "[:upper:]")</h2>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab(\"executive\")">👔 Executive Summary</button>
+            <button class="tab-button" onclick="showTab(\"tools\")">🔧 Tool Results</button>
+        </div>
+        
+        <div id="executive" class="tab-content active">
+            <div class="executive-summary">
+                <h2>📊 Business Impact Assessment</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div><strong>Compliance Risk:</strong> <span>$5</span></div>
+                    <div><strong>User Impact:</strong> $6% of users</div>
+                    <div><strong>Fix Time:</strong> $7 hours</div>
+                    <div><strong>Business Ready:</strong> $8</div>
                 </div>
             </div>
-        </body>
-        </html>
-        EOF
+            
+            <div class="metrics">
+                <div class="metric-card">
+                    <h3>🚨 Total Issues</h3>
+                    <div class="metric-value $9">$10</div>
+                    <div>$11</div>
+                </div>
+                <div class="metric-card">
+                    <h3>⚡ Critical Violations</h3>
+                    <div class="metric-value $12">$13</div>
+                    <div>$14</div>
+                </div>
+                <div class="metric-card">
+                    <h3>💡 Accessibility Score</h3>
+                    <div class="metric-value $15">$16%</div>
+                    <div>Industry Standard: 90%+</div>
+                </div>
+                <div class="metric-card">
+                    <h3>⏱️ Fix Investment</h3>
+                    <div class="metric-value $17">$18 hrs</div>
+                    <div>Development Time</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tools" class="tab-content">
+            <h2>📊 Detailed Results by Tool</h2>
+            <div class="tool-section">
+                <h3>🔧 Axe-core: $19 violations</h3>
+                <p>WCAG 2.1 compliance testing</p>
+            </div>
+            <div class="tool-section">
+                <h3>📋 Pa11y: $20 issues</h3>
+                <p>Content accessibility analysis</p>
+            </div>
+            <div class="tool-section">
+                <h3>💡 Lighthouse: $21% (Desktop) / $22% (Mobile)</h3>
+                <p>Performance and accessibility audit</p>
+            </div>
+            <div class="tool-section">
+                <h3>🎭 Playwright: $23 violations</h3>
+                <p>End-to-end accessibility testing</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Generated on $(date) | Workflow Run: $24 | Scan Quality: $25%</p>
+        </div>
+    </div>
+</body>
+</html>
+DASHBOARD_EOF' _ \
+        "$DASHBOARD_PATH" \
+        "${{ inputs.target-url }}" \
+        "${{ inputs.standards }}" \
+        "$OVERALL_STATUS" \
+        "$COMPLIANCE_RISK" \
+        "$ESTIMATED_USER_IMPACT" \
+        "$ESTIMATED_FIX_HOURS" \
+        "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "✅ Yes" || echo "❌ No")" \
+        "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "good" || echo "error")" \
+        "$TOTAL_ISSUES" \
+        "$([ "$TOTAL_ISSUES" -eq "0" ] && echo "Ready for Production" || echo "Action Required")" \
+        "$([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "good" || echo "error")" \
+        "$CRITICAL_VIOLATIONS" \
+        "$([ "$CRITICAL_VIOLATIONS" -eq "0" ] && echo "WCAG Compliant" || echo "Blocks Users")" \
+        "$([ "$(echo "$AVERAGE_LIGHTHOUSE_SCORE >= 90" | bc -l)" -eq "1" ] && echo "good" || echo "warning")" \
+        "$AVERAGE_LIGHTHOUSE_SCORE" \
+        "$([ "$ESTIMATED_FIX_HOURS" -le "4" ] && echo "good" || echo "warning")" \
+        "$ESTIMATED_FIX_HOURS" \
+        "${{ inputs.axe-violations }}" \
+        "${{ inputs.pa11y-issues }}" \
+        "${{ inputs.lighthouse-desktop-score }}" \
+        "${{ inputs.lighthouse-mobile-score }}" \
+        "${{ inputs.playwright-violations }}" \
+        "${{ inputs.workflow-run-number }}" \
+        "$(echo "scale=0; ($TOOLS_COMPLETED * 100) / $TOTAL_TOOLS" | bc)"
         
         echo "dashboard-path=$DASHBOARD_PATH" >> $GITHUB_OUTPUT
         echo "✅ Generated HTML dashboard: $DASHBOARD_PATH"
