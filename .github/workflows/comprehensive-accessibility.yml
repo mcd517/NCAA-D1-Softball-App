@@ -465,6 +465,53 @@ jobs:
             --chrome-options="no-sandbox,disable-dev-shm-usage" \
             --rules heading-order,landmark-one-main,aria-allowed-attr,aria-allowed-role || true
 
+      - name: Create baseline tracking metadata
+        run: |
+          cat > accessibility-reports/baseline-metadata.json << EOF
+          {
+            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_number": "${{ github.run_number }}",
+            "repository": "${{ github.repository }}",
+            "target_url": "$TARGET_URL",
+            "commit_sha": "${{ github.sha }}",
+            "baseline_established": true
+          }
+          EOF
+
+      - name: Create issue summary
+        run: |
+          # Calculate total issues found for reporting
+          AXCORE_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' accessibility-reports/axe-report.json 2>/dev/null || echo 0)
+          PA11Y_ISSUES=$(jq 'length' accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          KEYBOARD_ISSUES=$(jq 'length' accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          SCREENREADER_ISSUES=$(jq 'length' accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
+          
+          TOTAL_ISSUES=$((AXCORE_ISSUES + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
+          
+          # Store issue summary for manual GitHub issue creation
+          cat > accessibility-reports/issue-summary.json << EOF
+          {
+            "total_issues": ${TOTAL_ISSUES},
+            "breakdown": {
+              "axcore_issues": ${AXCORE_ISSUES},
+              "pa11y_issues": ${PA11Y_ISSUES},
+              "keyboard_issues": ${KEYBOARD_ISSUES},
+              "screenreader_issues": ${SCREENREADER_ISSUES}
+            },
+            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_number": "${{ github.run_number }}",
+            "workflow_run_id": "${{ github.run_id }}",
+            "target_url": "$TARGET_URL"
+          }
+          EOF
+          
+          echo "Created issue summary with $TOTAL_ISSUES total issues"
+          echo "- Axe-core issues: $AXCORE_ISSUES"
+          echo "- Pa11y issues: $PA11Y_ISSUES"
+          echo "- Keyboard issues: $KEYBOARD_ISSUES"
+          echo "- Screen reader issues: $SCREENREADER_ISSUES"
+
       - name: Generate comprehensive summary report
         run: |
           echo "# 🛠️ Accessibility Fix Guide" > accessibility-reports/README.md
@@ -743,20 +790,6 @@ jobs:
           name: accessibility-evaluation
           path: accessibility-reports/
           retention-days: 90
-
-      - name: Create baseline tracking metadata
-        run: |
-          cat > accessibility-reports/baseline-metadata.json << EOF
-          {
-            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "workflow_run_id": "${{ github.run_id }}",
-            "workflow_run_number": "${{ github.run_number }}",
-            "repository": "${{ github.repository }}",
-            "target_url": "$TARGET_URL",
-            "commit_sha": "${{ github.sha }}",
-            "baseline_established": true
-          }
-          EOF
 
       - name: Check if issues need to be created
         id: check_issues
