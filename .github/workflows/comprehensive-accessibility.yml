@@ -145,7 +145,7 @@ jobs:
           
           echo "## 🎯 Priority Action Plan" >> accessibility-reports/README.md
           echo "" >> accessibility-reports/README.md
-          ƒ
+          
           # Extract and prioritize axe-core violations (most reliable)
           if [ -f accessibility-reports/axe-report.json ]; then
             echo "### 🚨 Critical Issues (Fix First)" >> accessibility-reports/README.md
