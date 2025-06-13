@@ -848,8 +848,9 @@ jobs:
           echo "**Total Issues**: $TOTAL_ISSUES" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Action plan
+          # Generate action plan
           if [ "$TOTAL_ISSUES" -eq "0" ]; then
+            # Success case
             echo "🎉 **CONGRATULATIONS!** Your app passes all accessibility tests!" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "✅ **WCAG 2.1 AA Compliance**: No violations detected" >> $GITHUB_STEP_SUMMARY
@@ -858,9 +859,11 @@ jobs:
             echo "✅ **Content Quality**: No markup issues found" >> $GITHUB_STEP_SUMMARY
             echo "✅ **Structural Foundation**: Landmarks and navigation present" >> $GITHUB_STEP_SUMMARY
           else
+            # Issues found case
             echo "## 🎯 Priority-Based Action Plan" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
+            # Phase 1: Critical WCAG Fixes
             if [ "$AXE_VIOLATIONS" -gt "0" ]; then
               echo "### 🚨 Phase 1: Critical WCAG Fixes (⏰ 2-3 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "- **$AXE_VIOLATIONS WCAG violations** must be fixed immediately" >> $GITHUB_STEP_SUMMARY
@@ -869,11 +872,13 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
             
+            # Phase 2: High Priority Issues
             HIGH_PRIORITY_COUNT=$((STRUCTURAL_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
             if [ "$HIGH_PRIORITY_COUNT" -gt "0" ]; then
               echo "### 🏗️ Phase 2: High Priority Issues (⏰ 2-4 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
               
+              # Structural Foundation
               if [ "$STRUCTURAL_ISSUES" -gt "0" ]; then
                 echo "**Structural Foundation ($STRUCTURAL_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
                 echo "- Add \`<main>\` landmark to App.jsx" >> $GITHUB_STEP_SUMMARY
@@ -882,6 +887,7 @@ jobs:
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
               
+              # Keyboard Navigation
               if [ "$KEYBOARD_ISSUES" -gt "0" ]; then
                 echo "**Keyboard Navigation ($KEYBOARD_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
                 echo "- Add visible focus indicators to interactive elements" >> $GITHUB_STEP_SUMMARY
@@ -891,6 +897,7 @@ jobs:
                 echo "" >> $GITHUB_STEP_SUMMARY
               fi
               
+              # Screen Reader Support
               if [ "$SCREENREADER_ISSUES" -gt "0" ]; then
                 echo "**Screen Reader Support ($SCREENREADER_ISSUES issues):**" >> $GITHUB_STEP_SUMMARY
                 echo "- Fix heading hierarchy (h1 → h2 → h3)" >> $GITHUB_STEP_SUMMARY
@@ -902,6 +909,7 @@ jobs:
               fi
             fi
             
+            # Phase 3: Content Quality
             if [ "$PA11Y_ISSUES" -gt "0" ]; then
               echo "### 📝 Phase 3: Content Quality (⏰ 2-4 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
               echo "- **$PA11Y_ISSUES content and markup issues**" >> $GITHUB_STEP_SUMMARY
@@ -911,6 +919,7 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
             fi
             
+            # Phase 4: Validation
             echo "### ✅ Phase 4: Validation (⏰ 30 minutes)" >> $GITHUB_STEP_SUMMARY
             echo "- Re-run this accessibility workflow" >> $GITHUB_STEP_SUMMARY
             echo "- Test keyboard navigation manually (Tab through page)" >> $GITHUB_STEP_SUMMARY
@@ -918,13 +927,13 @@ jobs:
             echo "- Verify all issues are resolved" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            # Add Copilot SWE automation section
+            # Copilot SWE automation section
             echo "---" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "## 🤖 Automated Fix Option: GitHub Copilot SWE Agent" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             
-            # Calculate total manual time and savings
+            # Calculate time savings
             TOTAL_MANUAL_HOURS=8
             COPILOT_HOURS=1
             TIME_SAVED=$((TOTAL_MANUAL_HOURS - COPILOT_HOURS))
@@ -964,3 +973,4 @@ jobs:
             echo "- ✅ **Test and validate** all changes automatically" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Result:** Professional accessibility implementation in ~1 hour vs $TOTAL_MANUAL_HOURS hours manual work" >> $GITHUB_STEP_SUMMARY
+          fi
