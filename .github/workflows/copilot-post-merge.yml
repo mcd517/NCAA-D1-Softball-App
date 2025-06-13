@@ -10,7 +10,7 @@ jobs:
     if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'copilot-swe-agent'
     runs-on: ubuntu-latest
     env:
-      TARGET_URL: ${{ secrets.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/' }}
+      TARGET_URL: ${{ secrets.TARGET_URL}}
 
     steps:
       - name: Checkout repository
@@ -21,15 +21,15 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // Look for accessibility issue that was closed by this PR
+            // Look for accessibility issue that was manually created and closed by this PR
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'closed',
-              labels: 'accessibility,copilot',
+              labels: 'accessibility',
               sort: 'updated',
               direction: 'desc',
-              per_page: 10
+              per_page: 20
             });
             
             let baselineRunId = null;
@@ -37,19 +37,13 @@ jobs:
             
             // Find the issue that was likely closed by this PR
             for (const issue of issues) {
-              const timelineEvents = await github.rest.issues.listEventsForTimeline({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number
-              });
-              
-              // Check if this issue was closed recently (within last hour)
+              // Check if this issue was closed recently (within last 2 hours for manual process)
               const closedAt = new Date(issue.closed_at);
-              const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+              const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
               
-              if (closedAt > oneHourAgo) {
-                // Extract baseline run ID from issue body
-                const match = issue.body.match(/Workflow Run.*?#(\d+)/);
+              if (closedAt > twoHoursAgo) {
+                // Extract baseline run ID from issue body (look for "run #" pattern)
+                const match = issue.body.match(/run #(\d+)/i);
                 if (match) {
                   const runNumber = match[1];
                   
@@ -68,7 +62,7 @@ jobs:
                   if (baselineRun) {
                     baselineRunId = baselineRun.id;
                     issueNumber = issue.number;
-                    console.log(`Found baseline run ID: ${baselineRunId} from issue #${issueNumber}`);
+                    console.log(`Found baseline run ID: ${baselineRunId} from manually created issue #${issueNumber}`);
                     break;
                   }
                 }
@@ -76,7 +70,7 @@ jobs:
             }
             
             if (!baselineRunId) {
-              console.log('Could not find baseline run, will use most recent accessibility scan');
+              console.log('Could not find baseline run from recent issues, will use most recent accessibility scan');
               // Fallback: use most recent comprehensive accessibility workflow run
               const { data: runs } = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
@@ -97,7 +91,8 @@ jobs:
             const baselineInfo = {
               baseline_run_id: baselineRunId || '',
               issue_number: issueNumber || 'unknown',
-              has_baseline: baselineRunId ? 'true' : 'false'
+              has_baseline: baselineRunId ? 'true' : 'false',
+              manual_issue_process: true
             };
             fs.writeFileSync('baseline-info.json', JSON.stringify(baselineInfo, null, 2));
             
@@ -220,8 +215,8 @@ jobs:
       - name: Create keyboard navigation test script
         run: |
           cat > keyboard-test.js << 'EOF'
-          const puppeteer = require('puppeteer');
-          const fs = require('fs');
+          import puppeteer from 'puppeteer';
+          import { writeFileSync } from 'fs';
 
           async function testKeyboardNavigation() {
             const browser = await puppeteer.launch({
@@ -233,7 +228,8 @@ jobs:
             const issues = [];
             
             try {
-              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
+              await page.goto(targetUrl, { waitUntil: 'networkidle0' });
               
               // Test tab navigation
               const focusableElements = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', elements => {
@@ -307,7 +303,7 @@ jobs:
             
             await browser.close();
             
-            fs.writeFileSync('after-artifacts/accessibility-reports/keyboard-navigation.json', 
+            writeFileSync('after-artifacts/accessibility-reports/keyboard-navigation.json', 
               JSON.stringify(issues, null, 2));
             
             return issues.length;
@@ -325,8 +321,8 @@ jobs:
       - name: Create screen reader simulation script
         run: |
           cat > screen-reader-test.js << 'EOF'
-          const puppeteer = require('puppeteer');
-          const fs = require('fs');
+          import puppeteer from 'puppeteer';
+          import { writeFileSync } from 'fs';
 
           async function testScreenReaderCompatibility() {
             const browser = await puppeteer.launch({
@@ -338,7 +334,8 @@ jobs:
             const issues = [];
             
             try {
-              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
+              await page.goto(targetUrl, { waitUntil: 'networkidle0' });
               
               // Test for missing alt text on images
               const imagesWithoutAlt = await page.$$eval('img', imgs => 
@@ -428,7 +425,7 @@ jobs:
             
             await browser.close();
             
-            fs.writeFileSync('after-artifacts/accessibility-reports/screen-reader.json', 
+            writeFileSync('after-artifacts/accessibility-reports/screen-reader.json', 
               JSON.stringify(issues, null, 2));
             
             return issues.length;
@@ -622,14 +619,90 @@ jobs:
             try {
               baselineInfo = JSON.parse(fs.readFileSync('baseline-info.json', 'utf8'));
             } catch (error) {
-              console.log('No baseline info found, skipping issue update');
+              console.log('No baseline info found, will create a summary comment on the PR instead');
+              
+              // Create a summary comment on the PR
+              let summary;
+              try {
+                summary = JSON.parse(fs.readFileSync('after-artifacts/accessibility-reports/copilot-summary.json', 'utf8'));
+              } catch (error) {
+                console.log('No summary file found, skipping PR comment');
+                return;
+              }
+              
+              const prComment = `
+              ## 🤖 Accessibility Improvements Summary
+              
+              **PR Merged**: #${{ github.event.pull_request.number }}
+              **Completion Date**: ${new Date().toISOString()}
+              
+              ### 📊 Current Status:
+              - **WCAG Violations (axe-core)**: ${summary.remaining_issues.axe_core} remaining
+              - **Content Issues (pa11y)**: ${summary.remaining_issues.pa11y} remaining  
+              - **Keyboard Navigation**: ${summary.remaining_issues.keyboard_navigation} remaining
+              - **Screen Reader Support**: ${summary.remaining_issues.screen_reader} remaining
+              
+              ### 🔍 Test Coverage:
+              - ✅ Automated accessibility testing
+              - ✅ Keyboard navigation simulation
+              - ✅ Screen reader compatibility testing
+              - ✅ Mobile accessibility validation
+              
+              *Note: This analysis was performed without a baseline comparison. To get accurate fix metrics, create a GitHub issue referencing a specific accessibility scan run number.*
+              `;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body: prComment
+              });
+              
               return;
             }
             
             const issueNumber = parseInt(baselineInfo.issue_number, 10);
             
             if (isNaN(issueNumber) || issueNumber <= 0 || baselineInfo.issue_number === 'unknown') {
-              console.log('Invalid issue number, skipping issue update');
+              console.log('No valid issue number found, creating PR comment instead');
+              
+              // Create a summary comment on the PR
+              let summary;
+              try {
+                summary = JSON.parse(fs.readFileSync('after-artifacts/accessibility-reports/copilot-summary.json', 'utf8'));
+              } catch (error) {
+                console.log('No summary file found, skipping PR comment');
+                return;
+              }
+              
+              const prComment = `
+              ## 🤖 Accessibility Improvements Summary
+              
+              **PR Merged**: #${{ github.event.pull_request.number }}
+              **Completion Date**: ${new Date().toISOString()}
+              
+              ### 📊 Current Status:
+              - **WCAG Violations (axe-core)**: ${summary.remaining_issues.axe_core} remaining
+              - **Content Issues (pa11y)**: ${summary.remaining_issues.pa11y} remaining  
+              - **Keyboard Navigation**: ${summary.remaining_issues.keyboard_navigation} remaining
+              - **Screen Reader Support**: ${summary.remaining_issues.screen_reader} remaining
+              
+              ### 🔍 Test Coverage:
+              - ✅ Automated accessibility testing
+              - ✅ Keyboard navigation simulation
+              - ✅ Screen reader compatibility testing
+              - ✅ Mobile accessibility validation
+              
+              *Note: Manual issue process detected. For detailed before/after comparison, reference the specific accessibility scan run number in future issues.*
+              `;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.pull_request.number }},
+                body: prComment
+              });
+              
               return;
             }
             
@@ -642,7 +715,7 @@ jobs:
             }
             
             const resultComment = `
-            ## ✅ Copilot Fix Results
+            ## ✅ Accessibility Fix Results (Manual Process)
             
             **PR Merged**: #${{ github.event.pull_request.number }}
             **Completion Date**: ${new Date().toISOString()}
@@ -668,7 +741,14 @@ jobs:
             
             ${summary.baseline_comparison.after_total === 0 ? '🎉 **Congratulations!** All accessibility issues have been resolved!' : ''}
             
-            This issue is now closed. Future accessibility scans will establish new baselines for continued monitoring.
+            ### 📋 Next Steps:
+            ${summary.baseline_comparison.after_total > 0 ? `
+            - Run a new accessibility scan to establish the updated baseline
+            - Create a new GitHub issue for any remaining ${summary.baseline_comparison.after_total} issues
+            - Continue the manual issue → Copilot fix → merge cycle
+            ` : 'No further accessibility issues detected. Monitor with regular scans.'}
+            
+            *This issue can now be closed. Future accessibility improvements will use new baseline scans.*
             `;
             
             try {
@@ -679,15 +759,15 @@ jobs:
                 body: resultComment
               });
               
-              // Close the issue if all issues are resolved
-              if (summary.baseline_comparison.after_total === 0) {
-                await github.rest.issues.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issueNumber,
-                  state: 'closed'
-                });
-              }
+              // Close the issue regardless of remaining issues since this represents completion of manual process
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                state: 'closed'
+              });
+              
+              console.log(`Updated and closed manual issue #${issueNumber}`);
             } catch (error) {
               console.log(`Failed to update issue #${issueNumber}: ${error.message}`);
             }
