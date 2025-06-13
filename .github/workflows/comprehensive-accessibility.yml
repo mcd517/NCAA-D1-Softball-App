@@ -29,7 +29,7 @@ jobs:
         
       - name: Install accessibility testing tools
         run: |
-          npm install -g pa11y @axe-core/cli lighthouse
+          npm install -g pa11y @axe-core/cli lighthouse puppeteer
           
       - name: Create reports directory
         run: mkdir -p accessibility-reports
@@ -54,6 +54,232 @@ jobs:
               "WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail"
             ]
           }
+          EOF
+
+      - name: Create keyboard navigation test script
+        run: |
+          cat > keyboard-test.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+
+          async function testKeyboardNavigation() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              
+              // Test tab navigation
+              const focusableElements = await page.$$eval('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', elements => {
+                return elements.map(el => ({
+                  tagName: el.tagName,
+                  id: el.id,
+                  className: el.className,
+                  tabIndex: el.tabIndex
+                }));
+              });
+              
+              // Test each focusable element
+              for (let i = 0; i < Math.min(focusableElements.length, 20); i++) {
+                await page.keyboard.press('Tab');
+                const activeElement = await page.evaluate(() => {
+                  const el = document.activeElement;
+                  return {
+                    tagName: el.tagName,
+                    id: el.id,
+                    className: el.className,
+                    hasVisibleFocus: window.getComputedStyle(el, ':focus').outline !== 'none'
+                  };
+                });
+                
+                if (!activeElement.hasVisibleFocus) {
+                  issues.push({
+                    type: 'keyboard-navigation',
+                    severity: 'moderate',
+                    message: `Element ${activeElement.tagName} lacks visible focus indicator`,
+                    element: activeElement
+                  });
+                }
+              }
+              
+              // Test Enter/Space key activation
+              await page.keyboard.press('Tab');
+              const buttonElements = await page.$$('button');
+              if (buttonElements.length > 0) {
+                const button = buttonElements[0];
+                await button.focus();
+                
+                // Test if button responds to Enter key
+                const enterResponse = await page.evaluate(() => {
+                  return new Promise(resolve => {
+                    const btn = document.activeElement;
+                    let activated = false;
+                    btn.addEventListener('click', () => { activated = true; });
+                    btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+                    setTimeout(() => resolve(activated), 100);
+                  });
+                });
+                
+                if (!enterResponse) {
+                  issues.push({
+                    type: 'keyboard-navigation',
+                    severity: 'serious',
+                    message: 'Button does not respond to Enter key activation',
+                    element: { tagName: 'BUTTON' }
+                  });
+                }
+              }
+              
+            } catch (error) {
+              issues.push({
+                type: 'keyboard-navigation',
+                severity: 'critical',
+                message: `Keyboard navigation test failed: ${error.message}`,
+                element: null
+              });
+            }
+            
+            await browser.close();
+            
+            fs.writeFileSync('accessibility-reports/keyboard-navigation.json', 
+              JSON.stringify(issues, null, 2));
+            
+            return issues.length;
+          }
+
+          testKeyboardNavigation().then(count => {
+            console.log(`Found ${count} keyboard navigation issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Keyboard test error:', err);
+            process.exit(1);
+          });
+          EOF
+
+      - name: Create screen reader simulation script
+        run: |
+          cat > screen-reader-test.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+
+          async function testScreenReaderCompatibility() {
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: ['--no-sandbox', '--disable-dev-shm-usage']
+            });
+            
+            const page = await browser.newPage();
+            const issues = [];
+            
+            try {
+              await page.goto(process.env.TARGET_URL, { waitUntil: 'networkidle0' });
+              
+              // Test for missing alt text on images
+              const imagesWithoutAlt = await page.$$eval('img', imgs => 
+                imgs.filter(img => !img.alt || img.alt.trim() === '').length
+              );
+              
+              if (imagesWithoutAlt > 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'serious',
+                  message: `${imagesWithoutAlt} images missing alt text`,
+                  count: imagesWithoutAlt
+                });
+              }
+              
+              // Test for missing form labels
+              const unlabeledInputs = await page.$$eval('input', inputs => 
+                inputs.filter(input => {
+                  const id = input.id;
+                  const ariaLabel = input.getAttribute('aria-label');
+                  const ariaLabelledby = input.getAttribute('aria-labelledby');
+                  const hasLabel = id && document.querySelector(`label[for="${id}"]`);
+                  return !hasLabel && !ariaLabel && !ariaLabelledby;
+                }).length
+              );
+              
+              if (unlabeledInputs > 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'serious',
+                  message: `${unlabeledInputs} form inputs missing labels`,
+                  count: unlabeledInputs
+                });
+              }
+              
+              // Test for missing headings structure
+              const headings = await page.$$eval('h1, h2, h3, h4, h5, h6', headings => 
+                headings.map(h => ({ level: parseInt(h.tagName[1]), text: h.textContent.trim() }))
+              );
+              
+              if (headings.length === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No heading structure found for screen reader navigation',
+                  count: 1
+                });
+              } else {
+                // Check for proper heading hierarchy
+                let previousLevel = 0;
+                for (const heading of headings) {
+                  if (heading.level > previousLevel + 1) {
+                    issues.push({
+                      type: 'screen-reader',
+                      severity: 'moderate',
+                      message: `Heading hierarchy skip detected (h${previousLevel} to h${heading.level})`,
+                      count: 1
+                    });
+                    break;
+                  }
+                  previousLevel = heading.level;
+                }
+              }
+              
+              // Test for missing ARIA landmarks
+              const landmarks = await page.$$eval('[role="main"], [role="navigation"], [role="banner"], [role="contentinfo"], main, nav, header, footer', 
+                elements => elements.length
+              );
+              
+              if (landmarks === 0) {
+                issues.push({
+                  type: 'screen-reader',
+                  severity: 'moderate',
+                  message: 'No ARIA landmarks found for screen reader navigation',
+                  count: 1
+                });
+              }
+              
+            } catch (error) {
+              issues.push({
+                type: 'screen-reader',
+                severity: 'critical',
+                message: `Screen reader test failed: ${error.message}`,
+                count: 1
+              });
+            }
+            
+            await browser.close();
+            
+            fs.writeFileSync('accessibility-reports/screen-reader.json', 
+              JSON.stringify(issues, null, 2));
+            
+            return issues.length;
+          }
+
+          testScreenReaderCompatibility().then(count => {
+            console.log(`Found ${count} screen reader issues`);
+            process.exit(0);
+          }).catch(err => {
+            console.error('Screen reader test error:', err);
+            process.exit(1);
+          });
           EOF
           
       - name: Run pa11y accessibility scan (HTML report)
@@ -98,6 +324,15 @@ jobs:
           lighthouse $TARGET_URL \
             --only-categories=accessibility \
             --output=json \
+            --output-path=accessibility-reports/lighthouse-accessibility.report.json \
+            --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+            --max-wait-for-load=30000 || true
+            
+      - name: Run Lighthouse accessibility audit (HTML report)
+        run: |
+          echo "Running Lighthouse accessibility audit (HTML)..."
+          lighthouse $TARGET_URL \
+            --only-categories=accessibility \
             --output=html \
             --output-path=accessibility-reports/lighthouse-accessibility \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
@@ -117,11 +352,16 @@ jobs:
       - name: Run keyboard navigation tests
         run: |
           echo "Running keyboard navigation tests..."
-          npx puppeteer tests/a11y/keyboard-navigation.js --url $TARGET_URL --output accessibility-reports/keyboard-nav.json || true
+          node keyboard-test.js || true
 
-      - name: Run screen reader simulation
+      - name: Run screen reader simulation tests
         run: |
           echo "Running screen reader simulation..."
+          node screen-reader-test.js || true
+
+      - name: Run screen reader simulation with axe-core
+        run: |
+          echo "Running screen reader simulation with axe-core..."
           npx axe $TARGET_URL \
             --save accessibility-reports/screenreader-simulation.json \
             --timeout 30000 \
@@ -300,141 +540,146 @@ jobs:
           echo "Generated accessibility reports:"
           ls -la accessibility-reports/
           
-      - name: Upload accessibility reports
+      - name: Upload accessibility reports as baseline
         uses: actions/upload-artifact@v4
         with:
           name: accessibility-evaluation
           path: accessibility-reports/
           retention-days: 90
-          
-      - name: Create workflow summary and GitHub issue template
-        if: always()
+
+      - name: Create baseline tracking metadata
         run: |
-          echo "# 🛠️ Developer Action Required" > scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "**Scan completed:** $(date)" >> scan-summary.txt
-          echo "**Target URL:** $TARGET_URL" >> scan-summary.txt
-          echo "**Workflow Run:** ${{ github.run_number }}" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          
-          TOTAL_ISSUES=0
-          CRITICAL_COUNT=0
-          HIGH_PRIORITY_COUNT=0
-          PA11Y_COUNT=0
-          
-          # Check axe-core results for critical issues
-          if [ -f accessibility-reports/axe-report.json ]; then
-            CRITICAL_COUNT=$(cat accessibility-reports/axe-report.json | jq -r 'if type == "array" then .[0].violations else .violations end | length' 2>/dev/null || echo "0")
-            if [ "$CRITICAL_COUNT" -gt "0" ]; then
-              echo "🚨 **CRITICAL:** $CRITICAL_COUNT WCAG violations require immediate fixes" >> scan-summary.txt
-            else
-              echo "✅ **WCAG Compliance:** No critical violations found" >> scan-summary.txt
-            fi
-            TOTAL_ISSUES=$((TOTAL_ISSUES + CRITICAL_COUNT))
-          fi
-          
-          # Check Lighthouse for structural issues
-          if [ -f accessibility-reports/lighthouse-accessibility.report.json ]; then
-            LIGHTHOUSE_SCORE=$(cat accessibility-reports/lighthouse-accessibility.report.json | jq '.categories.accessibility.score * 100' 2>/dev/null || echo "0")
-            
-            # Count structural issues
-            LIGHTHOUSE_STRUCTURAL=0
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits["landmark-one-main"].scoreDisplayMode' | grep -q "notApplicable"; then
-              LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
-            fi
-            if cat accessibility-reports/lighthouse-accessibility.report.json | jq -r '.audits.bypass.scoreDisplayMode' | grep -q "notApplicable"; then
-              LIGHTHOUSE_STRUCTURAL=$((LIGHTHOUSE_STRUCTURAL + 1))
-            fi
-            
-            if [ "$LIGHTHOUSE_STRUCTURAL" -gt "0" ]; then
-              echo "🏗️ **STRUCTURAL:** $LIGHTHOUSE_STRUCTURAL foundation issues need fixes" >> scan-summary.txt
-              HIGH_PRIORITY_COUNT=$LIGHTHOUSE_STRUCTURAL
-            fi
-            
-            echo "💡 **Lighthouse Score:** $LIGHTHOUSE_SCORE% (structural issues excluded from score)" >> scan-summary.txt
-            TOTAL_ISSUES=$((TOTAL_ISSUES + LIGHTHOUSE_STRUCTURAL))
-          fi
-          
-          # Check pa11y for content issues
-          if [ -f accessibility-reports/pa11y-report.json ]; then
-            PA11Y_COUNT=$(cat accessibility-reports/pa11y-report.json | jq '. | length' 2>/dev/null || echo "0")
-            if [ "$PA11Y_COUNT" -gt "0" ]; then
-              echo "📝 **CONTENT:** $PA11Y_COUNT markup and content issues found" >> scan-summary.txt
-            fi
-            TOTAL_ISSUES=$((TOTAL_ISSUES + PA11Y_COUNT))
-          fi
-          
-          echo "" >> scan-summary.txt
-          
-          # Action plan
-          if [ "$TOTAL_ISSUES" -eq "0" ]; then
-            echo "🎉 **CONGRATULATIONS!** Your app is accessibility compliant!" >> scan-summary.txt
-          else
-            echo "## 🎯 Next Steps (Estimated time: 4-8 hours)" >> scan-summary.txt
-            echo "" >> scan-summary.txt
-            
-            if [ "$CRITICAL_COUNT" -gt "0" ]; then
-              echo "**1. Fix Critical Issues First** ⏰ 2-3 hours" >> scan-summary.txt
-              echo "   - Download reports and address $CRITICAL_COUNT WCAG violations" >> scan-summary.txt
-              echo "   - These impact users with disabilities immediately" >> scan-summary.txt
-              echo "" >> scan-summary.txt
-            fi
-            
-            if [ "$HIGH_PRIORITY_COUNT" -gt "0" ]; then
-              echo "**2. Add Structural Elements** ⏰ 1 hour" >> scan-summary.txt
-              echo "   - Add \`<main>\` landmark to App.jsx" >> scan-summary.txt
-              echo "   - Add skip navigation for keyboard users" >> scan-summary.txt
-              echo "   - These help screen readers navigate your site" >> scan-summary.txt
-              echo "" >> scan-summary.txt
-            fi
-            
-            if [ "$PA11Y_COUNT" -gt "50" ]; then
-              echo "**3. Review Content Issues** ⏰ 2-4 hours" >> scan-summary.txt
-              echo "   - Check pa11y-report.html for specific fixes needed" >> scan-summary.txt
-              echo "   - Focus on images, headings, and form labels" >> scan-summary.txt
-              echo "" >> scan-summary.txt
-            fi
-            
-            echo "**4. Test Your Fixes** ⏰ 30 minutes" >> scan-summary.txt
-            echo "   - Re-run this workflow to verify improvements" >> scan-summary.txt
-            echo "   - Test keyboard navigation (Tab key)" >> scan-summary.txt
-            echo "   - Test with screen reader if possible" >> scan-summary.txt
-          fi
-          
-          echo "" >> scan-summary.txt
-          echo "📋 **Download the complete fix guide:** \`accessibility-evaluation.zip\`" >> scan-summary.txt
-          
-          # Create GitHub issue template for manual creation
-          echo "" >> scan-summary.txt
-          echo "## 🤖 GitHub Issue Template" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "To create a GitHub issue and assign it to Copilot for automated fixes:" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "**Title:** \`Accessibility scan found $TOTAL_ISSUES issues (run #${{ github.run_number }})\`" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "**Body:**" >> scan-summary.txt
-          echo "\`\`\`" >> scan-summary.txt
-          echo "An automated accessibility scan identified:" >> scan-summary.txt
-          echo "- Critical violations: $CRITICAL_COUNT" >> scan-summary.txt
-          echo "- Structural issues: $HIGH_PRIORITY_COUNT" >> scan-summary.txt
-          echo "- Content issues: $PA11Y_COUNT" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "See artifact accessibility-evaluation.zip for detailed fix guide." >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "@copilot-swe-agent please fix these accessibility issues." >> scan-summary.txt
-          echo "\`\`\`" >> scan-summary.txt
+          cat > accessibility-reports/baseline-metadata.json << EOF
+          {
+            "scan_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_number": "${{ github.run_number }}",
+            "repository": "${{ github.repository }}",
+            "target_url": "$TARGET_URL",
+            "commit_sha": "${{ github.sha }}",
+            "baseline_established": true
+          }
+          EOF
 
-          # New Copilot Assist summary section
-          echo "" >> scan-summary.txt
-          echo "## 🤖 Copilot Assisted Fixes" >> scan-summary.txt
-          echo "" >> scan-summary.txt
-          echo "- Fixes applied by Copilot: $(jq -r '.fixes_applied // 0' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0')" >> scan-summary.txt
-          echo "- Additional issues Copilot found and fixed: $(jq -r '.additional_fixes // 0' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0')" >> scan-summary.txt
-          echo "- Estimated time saved: $(jq -r '.time_saved // \"0h 0m\"' accessibility-reports/copilot-summary.json 2>/dev/null || echo '0h 0m')" >> scan-summary.txt
-
-          # Output to workflow summary
-          cat scan-summary.txt >> $GITHUB_STEP_SUMMARY
+      - name: Check if issues need to be created
+        id: check_issues
+        run: |
+          # Calculate total issues found
+          AXCORE_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' accessibility-reports/axe-report.json 2>/dev/null || echo 0)
+          PA11Y_ISSUES=$(jq 'length' accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          KEYBOARD_ISSUES=$(jq 'length' accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          SCREENREADER_ISSUES=$(jq 'length' accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
           
-          # Also output to console for debugging
-          echo "=== DEVELOPER ACTION SUMMARY ==="
-          cat scan-summary.txt
+          TOTAL_ISSUES=$((AXCORE_ISSUES + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
+          
+          echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "axcore_issues=$AXCORE_ISSUES" >> $GITHUB_OUTPUT
+          echo "pa11y_issues=$PA11Y_ISSUES" >> $GITHUB_OUTPUT
+          echo "keyboard_issues=$KEYBOARD_ISSUES" >> $GITHUB_OUTPUT
+          echo "screenreader_issues=$SCREENREADER_ISSUES" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub issue for Copilot
+        if: steps.check_issues.outputs.total_issues > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const totalIssues = ${{ steps.check_issues.outputs.total_issues }};
+            const axcoreIssues = ${{ steps.check_issues.outputs.axcore_issues }};
+            const pa11yIssues = ${{ steps.check_issues.outputs.pa11y_issues }};
+            const keyboardIssues = ${{ steps.check_issues.outputs.keyboard_issues }};
+            const screenreaderIssues = ${{ steps.check_issues.outputs.screenreader_issues }};
+            
+            const issueBody = `
+            ## 🛠️ Accessibility Issues Detected
+            
+            An automated accessibility scan identified **${totalIssues} total issues** that need to be addressed:
+            
+            ### Issue Breakdown:
+            - **🚨 Critical WCAG Violations**: ${axcoreIssues} issues (axe-core)
+            - **📝 Content & Markup Issues**: ${pa11yIssues} issues (pa11y)
+            - **⌨️ Keyboard Navigation Issues**: ${keyboardIssues} issues
+            - **🔊 Screen Reader Issues**: ${screenreaderIssues} issues
+            
+            ### 📊 Scan Details:
+            - **Target URL**: ${process.env.TARGET_URL}
+            - **Scan Date**: ${new Date().toISOString()}
+            - **Workflow Run**: #${{ github.run_number }}
+            - **Standards**: WCAG 2.1 AA compliance
+            
+            ### 🎯 Priority Action Plan:
+            
+            1. **Fix Critical WCAG Violations** (${axcoreIssues} issues)
+               - These impact users with disabilities immediately
+               - Address semantic HTML, ARIA attributes, and landmarks
+            
+            2. **Improve Keyboard Navigation** (${keyboardIssues} issues)
+               - Ensure all interactive elements are keyboard accessible
+               - Add visible focus indicators
+               - Test tab order and key activation
+            
+            3. **Enhance Screen Reader Support** (${screenreaderIssues} issues)
+               - Fix heading hierarchy and landmarks
+               - Add missing alt text and ARIA labels
+               - Improve content structure
+            
+            4. **Address Content Issues** (${pa11yIssues} issues)
+               - Fix color contrast and text legibility
+               - Add proper form labels
+               - Ensure semantic markup
+            
+            ### 📋 Fix Instructions:
+            
+            Download the detailed reports from workflow run #${{ github.run_number }} artifact \`accessibility-evaluation.zip\` which contains:
+            - \`axe-report.json\` - Specific WCAG violations with fix guidance
+            - \`pa11y-report.html\` - Visual report with highlighted issues
+            - \`keyboard-navigation.json\` - Keyboard accessibility problems
+            - \`screen-reader.json\` - Screen reader compatibility issues
+            - \`README.md\` - Comprehensive fix guide with code examples
+            
+            ### ⏱️ Estimated Fix Time:
+            - Critical issues: ~${Math.ceil(axcoreIssues * 15 / 60)} hours
+            - Keyboard navigation: ~${Math.ceil(keyboardIssues * 20 / 60)} hours  
+            - Screen reader fixes: ~${Math.ceil(screenreaderIssues * 20 / 60)} hours
+            - Content issues: ~${Math.ceil(pa11yIssues * 10 / 60)} hours
+            - **Total estimated time**: ~${Math.ceil((axcoreIssues * 15 + keyboardIssues * 20 + screenreaderIssues * 20 + pa11yIssues * 10) / 60)} hours
+            
+            ---
+            
+            @copilot please fix these accessibility issues by:
+            1. Analyzing the detailed reports in the workflow artifacts
+            2. Implementing the specific fixes identified in the axe-core and pa11y reports
+            3. Adding proper keyboard navigation support
+            4. Ensuring screen reader compatibility
+            5. Testing your changes with the accessibility tools
+            
+            **Baseline Established**: This issue represents the baseline scan. When you complete the fixes, the post-merge workflow will measure your impact and calculate time saved.
+            `;
+            
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔧 Accessibility scan found ${totalIssues} issues - Copilot fix requested (run #${{ github.run_number }})`,
+              body: issueBody,
+              labels: ['accessibility', 'copilot', 'automated-issue'],
+              assignees: ['copilot-swe-agent']
+            });
+            
+            // Store issue details for tracking
+            require('fs').writeFileSync('accessibility-reports/github-issue.json', JSON.stringify({
+              issue_number: issue.data.number,
+              issue_url: issue.data.html_url,
+              created_at: issue.data.created_at,
+              baseline_run_id: '${{ github.run_id }}',
+              baseline_run_number: '${{ github.run_number }}',
+              total_issues: totalIssues,
+              breakdown: {
+                axcore_issues: axcoreIssues,
+                pa11y_issues: pa11yIssues,
+                keyboard_issues: keyboardIssues,
+                screenreader_issues: screenreaderIssues
+              }
+            }, null, 2));
+            
+            console.log(`Created issue #${issue.data.number}: ${issue.data.html_url}`);
+
+      # ...existing summary and upload steps...

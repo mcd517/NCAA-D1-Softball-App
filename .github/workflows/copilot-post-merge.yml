@@ -10,17 +10,182 @@ jobs:
     if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'copilot-swe-agent'
     runs-on: ubuntu-latest
     env:
-      TARGET_URL: ${{ secrets.TARGET_URL }}  # ensure your target URL is set in repo secrets
+      TARGET_URL: ${{ secrets.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download previous accessibility artifact
-        uses: actions/download-artifact@v4
+      - name: Find baseline accessibility report
+        id: find_baseline
+        uses: actions/github-script@v7
         with:
-          name: accessibility-evaluation  # use constant artifact name from comprehensive workflow
-          path: before-artifacts
+          script: |
+            // Look for accessibility issue that was closed by this PR
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: 'accessibility,copilot',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 10
+            });
+            
+            let baselineRunId = null;
+            let issueNumber = null;
+            
+            // Find the issue that was likely closed by this PR
+            for (const issue of issues) {
+              const timelineEvents = await github.rest.issues.listEventsForTimeline({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number
+              });
+              
+              // Check if this issue was closed recently (within last hour)
+              const closedAt = new Date(issue.closed_at);
+              const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+              
+              if (closedAt > oneHourAgo) {
+                // Extract baseline run ID from issue body
+                const match = issue.body.match(/Workflow Run.*?#(\d+)/);
+                if (match) {
+                  const runNumber = match[1];
+                  
+                  // Find the corresponding workflow run
+                  const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    workflow_id: 'comprehensive-accessibility.yml',
+                    per_page: 50
+                  });
+                  
+                  const baselineRun = runs.workflow_runs.find(run => 
+                    run.run_number.toString() === runNumber
+                  );
+                  
+                  if (baselineRun) {
+                    baselineRunId = baselineRun.id;
+                    issueNumber = issue.number;
+                    console.log(`Found baseline run ID: ${baselineRunId} from issue #${issueNumber}`);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            if (!baselineRunId) {
+              console.log('Could not find baseline run, will use most recent accessibility scan');
+              // Fallback: use most recent comprehensive accessibility workflow run
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'comprehensive-accessibility.yml',
+                status: 'completed',
+                per_page: 1
+              });
+              
+              if (runs.workflow_runs.length > 0) {
+                baselineRunId = runs.workflow_runs[0].id;
+                console.log(`Using most recent run as baseline: ${baselineRunId}`);
+              }
+            }
+            
+            // Write baseline info to file for later steps
+            const fs = require('fs');
+            const baselineInfo = {
+              baseline_run_id: baselineRunId || '',
+              issue_number: issueNumber || 'unknown',
+              has_baseline: baselineRunId ? 'true' : 'false'
+            };
+            fs.writeFileSync('baseline-info.json', JSON.stringify(baselineInfo, null, 2));
+            
+            core.setOutput('baseline_run_id', baselineRunId || '');
+            core.setOutput('issue_number', issueNumber || 'unknown');
+            core.setOutput('has_baseline', baselineRunId ? 'true' : 'false');
+            return { baselineRunId, issueNumber };
+
+      - name: Download baseline accessibility artifacts
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read baseline info from file
+            let baselineInfo;
+            try {
+              baselineInfo = JSON.parse(fs.readFileSync('baseline-info.json', 'utf8'));
+            } catch (error) {
+              console.log('No baseline info found, skipping artifact download');
+              return;
+            }
+            
+            const runId = baselineInfo.baseline_run_id;
+            
+            if (!runId || runId === '') {
+              console.log('No baseline run ID available, skipping artifact download');
+              return;
+            }
+            
+            try {
+              // Get artifacts for the baseline run
+              const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId
+              });
+              
+              // Find the accessibility-evaluation artifact
+              const accessibilityArtifact = artifacts.artifacts.find(
+                artifact => artifact.name === 'accessibility-evaluation'
+              );
+              
+              if (!accessibilityArtifact) {
+                console.log(`No accessibility-evaluation artifact found for run ${runId}`);
+                return;
+              }
+              
+              // Download the artifact
+              const download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: accessibilityArtifact.id,
+                archive_format: 'zip'
+              });
+              
+              // Save the artifact data
+              fs.writeFileSync('baseline-artifact.zip', Buffer.from(download.data));
+              
+              console.log(`Downloaded baseline artifact from run ${runId}`);
+            } catch (error) {
+              console.log(`Failed to download baseline artifact: ${error.message}`);
+            }
+
+      - name: Extract baseline artifacts
+        if: always()
+        run: |
+          # Create directory for baseline artifacts
+          mkdir -p before-artifacts
+          
+          # Extract the downloaded ZIP file if it exists
+          if [ -f baseline-artifact.zip ]; then
+            unzip -q baseline-artifact.zip -d before-artifacts/ || true
+            
+            # List extracted contents
+            echo "Extracted baseline artifacts:"
+            ls -la before-artifacts/
+            
+            # Verify we have the key files
+            echo "Checking for key baseline files:"
+            ls -la before-artifacts/axe-report.json || echo "Missing axe-report.json"
+            ls -la before-artifacts/pa11y-report.json || echo "Missing pa11y-report.json"
+            ls -la before-artifacts/keyboard-navigation.json || echo "Missing keyboard-navigation.json"
+            ls -la before-artifacts/screen-reader.json || echo "Missing screen-reader.json"
+          else
+            echo "No baseline artifact found to extract"
+          fi
 
       - name: Setup Node.js and tools
         uses: actions/setup-node@v4
@@ -311,32 +476,79 @@ jobs:
       - name: Compute fixes and generate copilot-summary.json
         run: |
           sudo apt-get update && sudo apt-get install -y jq
+          
+          # Initialize counters
+          BEFORE_A=0; AFTER_A=0; BEFORE_P=0; AFTER_P=0; BEFORE_K=0; AFTER_K=0; BEFORE_S=0; AFTER_S=0
+          
           # count before/after issues for existing tools
-          BEFORE_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' before-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
-          AFTER_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' after-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
-          BEFORE_P=$(jq 'length' before-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
-          AFTER_P=$(jq 'length' after-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          if [ -f before-artifacts/axe-report.json ]; then
+            BEFORE_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' before-artifacts/axe-report.json 2>/dev/null || echo 0)
+          fi
+          if [ -f after-artifacts/accessibility-reports/axe-report.json ]; then
+            AFTER_A=$(jq 'if type=="array" then .[0].violations else .violations end | length' after-artifacts/accessibility-reports/axe-report.json 2>/dev/null || echo 0)
+          fi
+          
+          if [ -f before-artifacts/pa11y-report.json ]; then
+            BEFORE_P=$(jq 'length' before-artifacts/pa11y-report.json 2>/dev/null || echo 0)
+          fi
+          if [ -f after-artifacts/accessibility-reports/pa11y-report.json ]; then
+            AFTER_P=$(jq 'length' after-artifacts/accessibility-reports/pa11y-report.json 2>/dev/null || echo 0)
+          fi
           
           # count before/after issues for keyboard navigation
-          BEFORE_K=$(jq 'length' before-artifacts/accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
-          AFTER_K=$(jq 'length' after-artifacts/accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          if [ -f before-artifacts/keyboard-navigation.json ]; then
+            BEFORE_K=$(jq 'length' before-artifacts/keyboard-navigation.json 2>/dev/null || echo 0)
+          fi
+          if [ -f after-artifacts/accessibility-reports/keyboard-navigation.json ]; then
+            AFTER_K=$(jq 'length' after-artifacts/accessibility-reports/keyboard-navigation.json 2>/dev/null || echo 0)
+          fi
           
           # count before/after issues for screen reader
-          BEFORE_S=$(jq 'length' before-artifacts/accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
-          AFTER_S=$(jq 'length' after-artifacts/accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
+          if [ -f before-artifacts/screen-reader.json ]; then
+            BEFORE_S=$(jq 'length' before-artifacts/screen-reader.json 2>/dev/null || echo 0)
+          fi
+          if [ -f after-artifacts/accessibility-reports/screen-reader.json ]; then
+            AFTER_S=$(jq 'length' after-artifacts/accessibility-reports/screen-reader.json 2>/dev/null || echo 0)
+          fi
           
           # compute fixes
           FIXED_A=$((BEFORE_A - AFTER_A))
           FIXED_P=$((BEFORE_P - AFTER_P))
           FIXED_K=$((BEFORE_K - AFTER_K))
           FIXED_S=$((BEFORE_S - AFTER_S))
+          
+          # Handle negative numbers (in case new issues were introduced)
+          FIXED_A=$((FIXED_A < 0 ? 0 : FIXED_A))
+          FIXED_P=$((FIXED_P < 0 ? 0 : FIXED_P))
+          FIXED_K=$((FIXED_K < 0 ? 0 : FIXED_K))
+          FIXED_S=$((FIXED_S < 0 ? 0 : FIXED_S))
+          
           TOTAL_FIXED=$((FIXED_A + FIXED_P + FIXED_K + FIXED_S))
           
+          # Count any new issues found (beyond the baseline)
+          BASELINE_TOTAL=$((BEFORE_A + BEFORE_P + BEFORE_K + BEFORE_S))
+          CURRENT_TOTAL=$((AFTER_A + AFTER_P + AFTER_K + AFTER_S))
+          ADDITIONAL_FIXES=0
+          
+          # If current total is less than what we fixed, Copilot found additional issues
+          if [ $((BASELINE_TOTAL - CURRENT_TOTAL)) -gt $TOTAL_FIXED ]; then
+            ADDITIONAL_FIXES=$((BASELINE_TOTAL - CURRENT_TOTAL - TOTAL_FIXED))
+          fi
+          
           # estimate time (10m per fix for axe/pa11y, 15m for keyboard/screen reader)
-          TIME_MINUTES=$(((FIXED_A + FIXED_P) * 10 + (FIXED_K + FIXED_S) * 15))
+          TIME_MINUTES=$(((FIXED_A + FIXED_P) * 10 + (FIXED_K + FIXED_S) * 15 + ADDITIONAL_FIXES * 12))
           HOURS=$((TIME_MINUTES / 60))
           MINS=$((TIME_MINUTES % 60))
           TIME_SAVED="${HOURS}h ${MINS}m"
+          
+          # Get baseline info with safe defaults
+          BASELINE_RUN_ID="unknown"
+          ISSUE_NUMBER="unknown"
+          
+          if [ -f baseline-info.json ]; then
+            BASELINE_RUN_ID=$(jq -r '.baseline_run_id // "unknown"' baseline-info.json)
+            ISSUE_NUMBER=$(jq -r '.issue_number // "unknown"' baseline-info.json)
+          fi
           
           # emit comprehensive summary JSON
           mkdir -p after-artifacts/accessibility-reports
@@ -355,8 +567,19 @@ jobs:
               "keyboard_navigation": ${AFTER_K},
               "screen_reader": ${AFTER_S}
             },
-            "additional_fixes": 0,
+            "baseline_comparison": {
+              "before_total": ${BASELINE_TOTAL},
+              "after_total": ${CURRENT_TOTAL},
+              "net_improvement": $((BASELINE_TOTAL - CURRENT_TOTAL))
+            },
+            "additional_fixes": ${ADDITIONAL_FIXES},
             "time_saved": "${TIME_SAVED}",
+            "baseline_metadata": {
+              "baseline_run_id": "${BASELINE_RUN_ID}",
+              "issue_number": "${ISSUE_NUMBER}",
+              "pr_number": "${{ github.event.pull_request.number }}",
+              "merge_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            },
             "test_coverage": {
               "automated_accessibility": true,
               "keyboard_navigation": true,
@@ -365,6 +588,109 @@ jobs:
             }
           }
           EOF
+          
+          # Output summary to workflow
+          echo "## 🤖 Copilot Accessibility Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Baseline Issue**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Merged**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Issues Fixed**: ${TOTAL_FIXED}" >> $GITHUB_STEP_SUMMARY
+          echo "**Additional Issues Found & Fixed**: ${ADDITIONAL_FIXES}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time Saved**: ${TIME_SAVED}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Fix Breakdown:" >> $GITHUB_STEP_SUMMARY
+          echo "- **WCAG Violations (axe-core)**: ${FIXED_A} fixed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Content Issues (pa11y)**: ${FIXED_P} fixed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Keyboard Navigation**: ${FIXED_K} fixed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Screen Reader Support**: ${FIXED_S} fixed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Remaining Issues:" >> $GITHUB_STEP_SUMMARY
+          echo "- **WCAG Violations**: ${AFTER_A} remaining" >> $GITHUB_STEP_SUMMARY
+          echo "- **Content Issues**: ${AFTER_P} remaining" >> $GITHUB_STEP_SUMMARY
+          echo "- **Keyboard Navigation**: ${AFTER_K} remaining" >> $GITHUB_STEP_SUMMARY
+          echo "- **Screen Reader Support**: ${AFTER_S} remaining" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update GitHub issue with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read baseline info from file
+            let baselineInfo;
+            try {
+              baselineInfo = JSON.parse(fs.readFileSync('baseline-info.json', 'utf8'));
+            } catch (error) {
+              console.log('No baseline info found, skipping issue update');
+              return;
+            }
+            
+            const issueNumber = parseInt(baselineInfo.issue_number, 10);
+            
+            if (isNaN(issueNumber) || issueNumber <= 0 || baselineInfo.issue_number === 'unknown') {
+              console.log('Invalid issue number, skipping issue update');
+              return;
+            }
+            
+            let summary;
+            try {
+              summary = JSON.parse(fs.readFileSync('after-artifacts/accessibility-reports/copilot-summary.json', 'utf8'));
+            } catch (error) {
+              console.log('No summary file found, skipping issue update');
+              return;
+            }
+            
+            const resultComment = `
+            ## ✅ Copilot Fix Results
+            
+            **PR Merged**: #${{ github.event.pull_request.number }}
+            **Completion Date**: ${new Date().toISOString()}
+            
+            ### 🎯 Impact Summary:
+            - **Total Issues Fixed**: ${summary.fixes_applied}
+            - **Additional Issues Found & Fixed**: ${summary.additional_fixes}
+            - **Time Saved**: ${summary.time_saved}
+            - **Net Improvement**: ${summary.baseline_comparison.before_total} → ${summary.baseline_comparison.after_total} issues
+            
+            ### 📊 Detailed Breakdown:
+            | Test Type | Fixed | Remaining |
+            |-----------|-------|-----------|
+            | WCAG Violations (axe-core) | ${summary.breakdown.axe_core_fixes} | ${summary.remaining_issues.axe_core} |
+            | Content Issues (pa11y) | ${summary.breakdown.pa11y_fixes} | ${summary.remaining_issues.pa11y} |
+            | Keyboard Navigation | ${summary.breakdown.keyboard_navigation_fixes} | ${summary.remaining_issues.keyboard_navigation} |
+            | Screen Reader Support | ${summary.breakdown.screen_reader_fixes} | ${summary.remaining_issues.screen_reader} |
+            
+            ### 🔍 Quality Metrics:
+            - **Test Coverage**: Automated accessibility, keyboard navigation, screen reader simulation, mobile accessibility
+            - **Standards Compliance**: WCAG 2.1 AA
+            - **Fix Efficiency**: ${Math.round((summary.fixes_applied / (summary.baseline_comparison.before_total || 1)) * 100)}% of baseline issues resolved
+            
+            ${summary.baseline_comparison.after_total === 0 ? '🎉 **Congratulations!** All accessibility issues have been resolved!' : ''}
+            
+            This issue is now closed. Future accessibility scans will establish new baselines for continued monitoring.
+            `;
+            
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: resultComment
+              });
+              
+              // Close the issue if all issues are resolved
+              if (summary.baseline_comparison.after_total === 0) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed'
+                });
+              }
+            } catch (error) {
+              console.log(`Failed to update issue #${issueNumber}: ${error.message}`);
+            }
 
       - name: Upload copilot summary
         uses: actions/upload-artifact@v4
