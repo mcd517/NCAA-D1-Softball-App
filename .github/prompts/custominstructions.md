@@ -9,6 +9,8 @@ This project aims to build an enterprise-ready, comprehensive accessibility scan
 
 The immediate goal is to perfect the accessibility scan itself—not to remediate or fix accessibility issues at this time.
 
+Focus your efforts on refining, extending, and optimizing the Unified Accessibility Scanner, ensuring we don't create duplicative functionalities, and aligning with the goal of making it a robust, enterprise-ready tool.
+
 Scope:
 
 Only contribute to the development, enhancement, and accuracy of the accessibility scanning engine and its features.
@@ -27,7 +29,7 @@ Enhance reporting, logging, and export features for scan results.
 Support multiple standards (ADA, 508, WCAG, etc.) in the scanning logic.
 Write tests and documentation focused on scan accuracy and coverage.
 Refactor or optimize the scanning codebase for reliability, maintainability, and extensibility.
-Ensure doucmentation (.MD) files are updated for accuracy with each change.
+Ensure documentation (.MD) files are updated for accuracy with each change/commit.
 Ensure that we are not creating duplicative/excees code and files. Default to small and modular.
 Fully explain any changes, suggestions, etc.
 

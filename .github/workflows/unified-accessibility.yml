@@ -829,58 +829,77 @@ jobs:
           echo "Applying accessibility quality gates..."
           
           # Calculate issue counts
-          AXCORE_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo 0)
+          AXCORE_TOTAL_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo 0)
+          AXCORE_CRITICAL_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | map(select(.impact == "critical")) | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo 0)
+
           PA11Y_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/pa11y-report.json 2>/dev/null || echo 0)
-          KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo 0)
-          SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo 0)
+
+          KEYBOARD_TOTAL_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo 0)
+          KEYBOARD_CRITICAL_ISSUES=$(jq '[.[] | select(.severity == "critical")] | length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo 0)
+
+          SCREENREADER_TOTAL_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo 0)
+          SCREENREADER_CRITICAL_ISSUES=$(jq '[.[] | select(.severity == "critical")] | length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo 0)
+          
           LIGHTHOUSE_SCORE=$(jq '.categories.accessibility.score * 100' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null || echo 0)
           
-          TOTAL_ISSUES=$((AXCORE_ISSUES + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
+          TOTAL_ISSUES=$((AXCORE_TOTAL_ISSUES + PA11Y_ISSUES + KEYBOARD_TOTAL_ISSUES + SCREENREADER_TOTAL_ISSUES))
+          TOTAL_CRITICAL_ISSUES=$((AXCORE_CRITICAL_ISSUES + KEYBOARD_CRITICAL_ISSUES + SCREENREADER_CRITICAL_ISSUES))
           
-          # Default quality gate thresholds
-          MAX_CRITICAL_VIOLATIONS=0
-          MAX_TOTAL_ISSUES=10
-          MIN_LIGHTHOUSE_SCORE=85
+          # Default quality gate thresholds (These should ideally be loaded from accessibility-config.yml based on environment)
+          # For now, using values similar to the original script or common defaults.
+          # The workflow's 'setup' job should be enhanced to output these based on config.
+          MAX_CRITICAL_VIOLATIONS_THRESHOLD=0 # Default, assuming strict for critical issues
+          MAX_TOTAL_ISSUES_THRESHOLD=10       # Default
+          MIN_LIGHTHOUSE_SCORE_THRESHOLD=85   # Default
+
+          # TODO: Enhance 'setup' job to parse thresholds from accessibility-config.yml for the current environment
+          # and use those outputs here instead of hardcoded defaults. Example:
+          # MAX_CRITICAL_VIOLATIONS_THRESHOLD=${{ needs.setup.outputs.max_critical_violations_threshold }}
           
-          # Determine if quality gates pass
           QUALITY_GATE_PASSED=true
           FAILURES=()
           
-          if [ "$AXCORE_ISSUES" -gt "$MAX_CRITICAL_VIOLATIONS" ]; then
+          if [ "$TOTAL_CRITICAL_ISSUES" -gt "$MAX_CRITICAL_VIOLATIONS_THRESHOLD" ]; then
             QUALITY_GATE_PASSED=false
-            FAILURES+=("Critical WCAG violations found ($AXCORE_ISSUES)")
+            FAILURES+=("Critical violations found ($TOTAL_CRITICAL_ISSUES > $MAX_CRITICAL_VIOLATIONS_THRESHOLD)")
           fi
           
-          if [ "$TOTAL_ISSUES" -gt "$MAX_TOTAL_ISSUES" ]; then
+          if [ "$TOTAL_ISSUES" -gt "$MAX_TOTAL_ISSUES_THRESHOLD" ]; then
             QUALITY_GATE_PASSED=false
-            FAILURES+=("Total issues exceed threshold ($TOTAL_ISSUES > $MAX_TOTAL_ISSUES)")
+            FAILURES+=("Total issues exceed threshold ($TOTAL_ISSUES > $MAX_TOTAL_ISSUES_THRESHOLD)")
           fi
           
-          if [ "$(echo "$LIGHTHOUSE_SCORE < $MIN_LIGHTHOUSE_SCORE" | bc -l 2>/dev/null || echo 0)" -eq "1" ]; then
+          if [ "$(echo "$LIGHTHOUSE_SCORE < $MIN_LIGHTHOUSE_SCORE_THRESHOLD" | bc -l)" -eq 1 ]; then
             QUALITY_GATE_PASSED=false
-            FAILURES+=("Lighthouse score below threshold ($LIGHTHOUSE_SCORE < $MIN_LIGHTHOUSE_SCORE)")
+            FAILURES+=("Lighthouse score is below threshold ($LIGHTHOUSE_SCORE < $MIN_LIGHTHOUSE_SCORE_THRESHOLD)")
           fi
-          
-          echo "=== Quality Gate Results ==="
-          echo "Total Issues: $TOTAL_ISSUES"
-          echo "Critical Violations: $AXCORE_ISSUES"
-          echo "Lighthouse Score: $LIGHTHOUSE_SCORE%"
-          echo "Quality Gate Passed: $QUALITY_GATE_PASSED"
-          
-          if [ "$QUALITY_GATE_PASSED" = "false" ]; then
-            echo "❌ Quality gate failures:"
-            for failure in "${FAILURES[@]}"; do
-              echo "  - $failure"
-            done
-          else
-            echo "✅ All quality gates passed!"
-          fi
-          
-          echo "passed=$QUALITY_GATE_PASSED" >> $GITHUB_OUTPUT
-          echo "total-issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
-          echo "critical-issues=$AXCORE_ISSUES" >> $GITHUB_OUTPUT
 
-      - name: Generate workflow summary
+          echo "Quality Gate Status: $QUALITY_GATE_PASSED"
+          echo "Total Issues: $TOTAL_ISSUES (Threshold: $MAX_TOTAL_ISSUES_THRESHOLD)"
+          echo "Critical Issues: $TOTAL_CRITICAL_ISSUES (Threshold: $MAX_CRITICAL_VIOLATIONS_THRESHOLD)"
+          echo "Lighthouse Score: $LIGHTHOUSE_SCORE (Threshold: $MIN_LIGHTHOUSE_SCORE_THRESHOLD)"
+          
+          if [ "$FAIL_ON_ISSUES" = "true" ] && [ "$QUALITY_GATE_PASSED" = "false" ]; then
+            echo "::error::Accessibility quality gates failed: ${FAILURES[*]}"
+            exit 1
+          else
+            echo "Accessibility quality gates passed or not configured to fail workflow."
+          fi
+          
+          echo "quality_gate_passed=$QUALITY_GATE_PASSED" >> $GITHUB_OUTPUT
+          echo "total_issues=$TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "axcore_total_issues=$AXCORE_TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "pa11y_total_issues=$PA11Y_ISSUES" >> $GITHUB_OUTPUT
+          echo "keyboard_total_issues=$KEYBOARD_TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "screenreader_total_issues=$SCREENREADER_TOTAL_ISSUES" >> $GITHUB_OUTPUT
+          
+          echo "total_critical_issues=$TOTAL_CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "axcore_critical_issues=$AXCORE_CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "keyboard_critical_issues=$KEYBOARD_CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "screenreader_critical_issues=$SCREENREADER_CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          echo "lighthouse_score=$LIGHTHOUSE_SCORE" >> $GITHUB_OUTPUT
+
+      - name: Generate summary for GitHub Actions
         if: always()
         run: |
           echo "# 🔍 Unified Accessibility Scan Results" >> $GITHUB_STEP_SUMMARY
@@ -892,61 +911,77 @@ jobs:
           echo "**Workflow Run:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Extract results
-          AXCORE_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo 0)
-          PA11Y_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/pa11y-report.json 2>/dev/null || echo 0)
-          KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo 0)
-          SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo 0)
-          LIGHTHOUSE_SCORE=$(jq '.categories.accessibility.score * 100' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null || echo 0)
-          TOTAL_ISSUES=$((AXCORE_ISSUES + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
-          
-          # Generate results table
-          echo "## 📊 Scan Results" >> $GITHUB_STEP_SUMMARY
+          # Use outputs from the quality-gates step
+          TOTAL_ISSUES="${{ steps.quality-gates.outputs.total_issues }}"
+          TOTAL_CRITICAL_ISSUES="${{ steps.quality-gates.outputs.total_critical_issues }}"
+          AXCORE_TOTAL_ISSUES="${{ steps.quality-gates.outputs.axcore_total_issues }}"
+          AXCORE_CRITICAL_ISSUES="${{ steps.quality-gates.outputs.axcore_critical_issues }}"
+          PA11Y_TOTAL_ISSUES="${{ steps.quality-gates.outputs.pa11y_total_issues }}"
+          KEYBOARD_TOTAL_ISSUES="${{ steps.quality-gates.outputs.keyboard_total_issues }}"
+          KEYBOARD_CRITICAL_ISSUES="${{ steps.quality-gates.outputs.keyboard_critical_issues }}"
+          SCREENREADER_TOTAL_ISSUES="${{ steps.quality-gates.outputs.screenreader_total_issues }}"
+          SCREENREADER_CRITICAL_ISSUES="${{ steps.quality-gates.outputs.screenreader_critical_issues }}"
+          LIGHTHOUSE_SCORE="${{ steps.quality-gates.outputs.lighthouse_score }}"
+          QUALITY_GATE_PASSED="${{ steps.quality-gates.outputs.quality_gate_passed }}"
+
+          echo "## 📊 Overall Scan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Standard | Status | Issues Found |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|---------|--------------|" >> $GITHUB_STEP_SUMMARY
-          echo "| WCAG 2.1 AA | $([ "$AXCORE_ISSUES" -eq "0" ] && echo "✅ PASS" || echo "❌ FAIL") | $AXCORE_ISSUES violations |" >> $GITHUB_STEP_SUMMARY
-          echo "| Section 508 | $([ "$AXCORE_ISSUES" -eq "0" ] && echo "✅ PASS" || echo "❌ FAIL") | $AXCORE_ISSUES violations |" >> $GITHUB_STEP_SUMMARY
-          echo "| ADA Compliance | $([ "$TOTAL_ISSUES" -eq "0" ] && echo "✅ PASS" || echo "❌ FAIL") | $TOTAL_ISSUES total issues |" >> $GITHUB_STEP_SUMMARY
-          echo "| WCAG 2.0 AA | $([ "$AXCORE_ISSUES" -eq "0" ] && echo "✅ PASS" || echo "❌ FAIL") | $AXCORE_ISSUES violations |" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric                        | Count | Status                                                              |"
+          echo "|-------------------------------|-------|---------------------------------------------------------------------|"
+          echo "| **Total Accessibility Issues**  | **$TOTAL_ISSUES** | $([ "$TOTAL_ISSUES" -eq "0" ] && echo "✅ No issues" || echo "⚠️ Issues found")   |"
+          echo "| **Total Critical Issues**     | **$TOTAL_CRITICAL_ISSUES** | $([ "$TOTAL_CRITICAL_ISSUES" -eq "0" ] && echo "✅ No critical issues" || echo "🚨 CRITICAL ACTION NEEDED") |
+          echo "| Lighthouse Accessibility Score| $LIGHTHOUSE_SCORE%  | $([ "$(echo "$LIGHTHOUSE_SCORE >= 90" | bc -l 2>/dev/null || echo 0)" -eq "1" ] && echo "✅ Good (90+)" || ([ "$(echo "$LIGHTHOUSE_SCORE >= 50" | bc -l 2>/dev/null || echo 0)" -eq "1" ] && echo "🟠 Needs Improvement (50-89)" || echo "🔴 Poor (<50)")) |
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Detailed breakdown
-          echo "## 🔍 Detailed Breakdown" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 🔍 Detailed Results by Tool" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Category | Issues | Severity |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Critical WCAG Violations | $AXCORE_ISSUES | 🚨 Critical |" >> $GITHUB_STEP_SUMMARY
-          echo "| Keyboard Navigation | $KEYBOARD_ISSUES | 🔑 High |" >> $GITHUB_STEP_SUMMARY
-          echo "| Screen Reader Support | $SCREENREADER_ISSUES | 🔊 High |" >> $GITHUB_STEP_SUMMARY
-          echo "| Content & Markup | $PA11Y_ISSUES | 📝 Medium |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Total Issues** | **$TOTAL_ISSUES** | - |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lighthouse Score | $LIGHTHOUSE_SCORE% | $([ "$(echo "$LIGHTHOUSE_SCORE >= 90" | bc -l 2>/dev/null || echo 0)" -eq "1" ] && echo "✅ Good" || echo "⚠️ Needs Improvement") |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Quality gates
-          echo "## 🚦 Quality Gates" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Overall Status:** $([ "${{ steps.quality-gates.outputs.passed }}" = "true" ] && echo "✅ PASSED" || echo "❌ FAILED")" >> $GITHUB_STEP_SUMMARY
+          echo "| Tool                     | Total Issues | Critical Issues | Notes                                              |"
+          echo "|--------------------------|--------------|-----------------|----------------------------------------------------|"
+          echo "| Axe-core (WCAG)          | $AXCORE_TOTAL_ISSUES      | $AXCORE_CRITICAL_ISSUES      | Automated WCAG compliance checks.                  |"
+          echo "| Pa11y                    | $PA11Y_TOTAL_ISSUES      | N/A             | Additional automated checks (often HTML CodeSniffer). |
+          echo "| Keyboard Navigation Test | $KEYBOARD_TOTAL_ISSUES      | $KEYBOARD_CRITICAL_ISSUES      | Custom script for keyboard interaction.            |"
+          echo "| Screen Reader Test       | $SCREENREADER_TOTAL_ISSUES  | $SCREENREADER_CRITICAL_ISSUES  | Custom script for screen reader compatibility.     |"
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Action plan
-          if [ "$TOTAL_ISSUES" -eq "0" ]; then
-            echo "## 🎉 Success!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Your application meets all accessibility standards and is ready for users with disabilities!" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚦 Quality Gate Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$QUALITY_GATE_PASSED" = "true" ]; then
+            echo "**Status: ✅ PASSED**" >> $GITHUB_STEP_SUMMARY
+            echo "The scan met all configured quality gate thresholds." >> $GITHUB_STEP_SUMMARY
           else
-            echo "## 🎯 Next Steps" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "1. **Download Reports:** Get the \`unified-accessibility-evaluation.zip\` artifact" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Review Dashboard:** Open \`accessibility-dashboard.html\` for visual overview" >> $GITHUB_STEP_SUMMARY
-            echo "3. **Fix Critical Issues:** Address WCAG violations first ($AXCORE_ISSUES found)" >> $GITHUB_STEP_SUMMARY
-            echo "4. **Improve Navigation:** Fix keyboard and screen reader issues" >> $GITHUB_STEP_SUMMARY
-            echo "5. **Re-scan:** Run this workflow again after fixes" >> $GITHUB_STEP_SUMMARY
+            echo "**Status: ❌ FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "The scan did not meet one or more configured quality gate thresholds." >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.setup.outputs.fail-on-issues }}" = "true" ]; then
+              echo "The workflow is configured to fail on quality gate violations." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "The workflow is NOT configured to fail on quality gate violations, so it will proceed." >> $GITHUB_STEP_SUMMARY
+            fi
           fi
-          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**📋 Complete Reports Available:** Download the workflow artifact for detailed technical reports" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🛠️ How to Fix Issues & Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1.  **Download Artifacts:** Retrieve the \`unified-accessibility-evaluation.zip\` file from this workflow run. This artifact contains detailed JSON and HTML reports from all scanning tools." >> $GITHUB_STEP_SUMMARY
+          echo "2.  **Review Reports:**" >> $GITHUB_STEP_SUMMARY
+          echo "    *   Open \`accessibility-dashboard.html\` for a high-level overview and visual report (if generated)."
+          echo "    *   Examine \`axe-report.json\` for specific WCAG violations, including code snippets and selectors."
+          echo "    *   Check \`pa11y-report.html\` (if generated) or \`pa11y-report.json\` for additional automated findings."
+          echo "    *   Inspect \`keyboard-navigation.json\` for issues related to keyboard-only access (e.g., focus order, visible focus indicators, skip links)."
+          echo "    *   Analyze \`screen-reader.json\` for problems affecting screen reader users (e.g., missing landmarks (main, h1), image alt text, form labels)."
+          echo "3.  **Prioritize Fixes:**" >> $GITHUB_STEP_SUMMARY
+          echo "    *   Address **Critical** issues first. These are often major barriers for users."
+          echo "    *   Focus on issues identified by Axe-core, as these directly relate to WCAG compliance."
+          echo "    *   Ensure all interactive elements are keyboard accessible and that screen readers can correctly interpret page structure and content."
+          echo "4.  **Implement Solutions:** Modify your application code (e.g., in your React components - `src/App.jsx`, `src/components/*`) to resolve the identified issues. Common fixes include:" >> $GITHUB_STEP_SUMMARY
+          echo "    *   Adding a \`<main>\` element to wrap the primary content (often in `App.jsx` or a main layout component)."
+          echo "    *   Ensuring a single, descriptive \`<h1>\` heading exists on each page."
+          echo "    *   Providing \`alt\` text for all meaningful images."
+          echo "    *   Correctly associating labels with form inputs."
+          echo "    *   Ensuring visible focus indicators for all interactive elements."
+          echo "5.  **Re-scan:** After applying fixes, commit your changes and re-run this workflow (e.g., by pushing to your branch or manually triggering it) to verify the issues are resolved." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "--- " >> $GITHUB_STEP_SUMMARY # Horizontal rule for separation
+          echo "**Note:** This summary provides an overview. For complete details, always refer to the downloaded artifact reports." >> $GITHUB_STEP_SUMMARY
 
       - name: Fail workflow if quality gates failed and configured to fail
         if: needs.setup.outputs.fail-on-issues == 'true' && steps.quality-gates.outputs.passed == 'false'
