@@ -240,13 +240,13 @@ jobs:
           
           # Run Playwright tests.
           # --reporter=json on CLI typically outputs to 'playwright-report/results.json' by default.
+          # Removing --reporter=json from CLI to ensure playwright.config.js reporter settings are used.
           TARGET_URL="${{ needs.setup.outputs.target-url }}" npx playwright test tests/accessibility/accessibility.spec.js \\
             --project=chromium \\
-            --reporter=json \\
             --output-dir=${{ env.REPORT_DIR }}/playwright-results || echo "Playwright tests completed with issues"
           
           # Define source and target for the report
-          # The --reporter=json CLI flag typically outputs to "playwright-report/results.json" by default.
+          # The playwright.config.js specifies 'playwright-report/results.json' as the output for the JSON reporter.
           PLAYWRIGHT_JSON_REPORT_SOURCE="playwright-report/results.json"
           PLAYWRIGHT_JSON_REPORT_TARGET="${{ env.REPORT_DIR }}/playwright-report.json"
 
