@@ -506,7 +506,7 @@ test.describe('Comprehensive Accessibility Audit', () => {
               return true;
             }
           }
-        } catch (e) {
+        } catch {
           // Cross-origin stylesheets may throw errors
           continue;
         }
@@ -557,7 +557,6 @@ test.describe('Comprehensive Accessibility Audit', () => {
       const colorOnlyIssues = [];
       
       elements.forEach(el => {
-        const style = window.getComputedStyle(el);
         const text = el.textContent?.trim();
         
         // Check for elements that might rely only on color
