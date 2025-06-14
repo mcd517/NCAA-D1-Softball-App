@@ -95,13 +95,19 @@ The server exposes the following endpoints:
 
 This application includes enterprise-grade automated accessibility evaluation to ensure WCAG 2.1 AA compliance. The system features:
 
-- **🔧 Enterprise Scanner**: Modular, configurable accessibility testing with parallel execution
-- **🎯 Quality Gates**: Configurable thresholds with pass/fail criteria
-- **📊 Comprehensive Reporting**: HTML dashboards, PR comments, and webhook notifications
-- **⚙️ Multi-Standard Support**: WCAG 2.1 A/AA/AAA, Section 508, EN 301 549
-- **🚀 Parallel Execution**: Matrix strategy for faster scanning with multiple tools
+- **🔧 Unified Scanner**: Single configurable workflow replacing multiple redundant systems
+- **🎯 Quality Gates**: Configurable thresholds with pass/fail criteria for ADA, Section 508, WCAG 2.1/2.0
+- **📊 Comprehensive Reporting**: Interactive HTML dashboards, executive summaries, and automated PR comments
+- **⚙️ Multi-Standard Compliance**: WCAG 2.1 AA, WCAG 2.0 AA, Section 508, ADA requirements
+- **🚀 Enhanced Detection**: Custom keyboard navigation, screen reader compatibility, and color contrast testing
+- **🔍 Specialized Detectors**: Focus trap detection, dynamic content accessibility, cognitive accessibility assessment
 
-The scans run automatically on PRs and weekly schedules, using industry-standard tools including axe-core, pa11y, Lighthouse, and Playwright. See [Enterprise Accessibility Documentation](.github/ENTERPRISE_ACCESSIBILITY.md) for detailed setup and configuration.
+The unified accessibility scanner runs automatically on PRs and weekly schedules, using industry-standard tools including axe-core, pa11y, Lighthouse, and custom Playwright tests. Features standardized artifact naming, graceful error handling, and comprehensive compliance validation.
+
+**Quick Start:**
+- Manual scan: Go to Actions → "Unified Accessibility Scanner" → Run workflow
+- View results: Download the `unified-accessibility-evaluation` artifact
+- See detailed configuration: `.github/accessibility-config.yml`
 
 ## Contributing
 
