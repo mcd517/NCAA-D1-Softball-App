@@ -232,19 +232,21 @@ jobs:
             --screenEmulation.mobile=true || echo "Lighthouse mobile scan completed with issues"
 
       - name: Run Playwright accessibility tests
+        id: playwright_tests # Added id
+        continue-on-error: true # Added continue-on-error
         run: |
           echo "Running Playwright accessibility tests..."
           
           # Create Playwright output directories for artifacts (traces, screenshots, etc.)
           mkdir -p ${{ env.REPORT_DIR }}/playwright-results
           
-          # Run Playwright tests.
-          # --reporter=json on CLI typically outputs to 'playwright-report/results.json' by default.
-          # Removing --reporter=json from CLI to ensure playwright.config.js reporter settings are used.
-          TARGET_URL="${{ needs.setup.outputs.target-url }}" npx playwright test tests/accessibility/accessibility.spec.js \\
+          # Run Playwright tests with DEBUG enabled. Removed || echo at the end.
+          TARGET_URL="${{ needs.setup.outputs.target-url }}" \\
+          DEBUG=pw:api \\
+          npx playwright test tests/accessibility/accessibility.spec.js \\
             --project=chromium \\
-            --output-dir=${{ env.REPORT_DIR }}/playwright-results || echo "Playwright tests completed with issues"
-          
+            --output-dir=${{ env.REPORT_DIR }}/playwright-results
+
           # Define source and target for the report
           # The playwright.config.js specifies 'playwright-report/results.json' as the output for the JSON reporter.
           PLAYWRIGHT_JSON_REPORT_SOURCE="playwright-report/results.json"
