@@ -7,9 +7,11 @@ Purpose
 
 This project aims to build an enterprise-ready, comprehensive accessibility scanning solution to help organizations comply with ADA, Section 508, WCAG, and similar standards.
 
-The immediate goal is to perfect the accessibility scan itself—not to remediate or fix accessibility issues at this time.
+The immediate goal is to perfect the accessibility scanning solution itself—not to remediate or fix accessibility issues at this time.
 
 Focus your efforts on refining, extending, and optimizing the Unified Accessibility Scanner, ensuring we don't create duplicative functionalities, and aligning with the goal of making it a robust, enterprise-ready tool.
+
+Ensure that all changes are minimal but surgical in nature.
 
 Scope:
 
