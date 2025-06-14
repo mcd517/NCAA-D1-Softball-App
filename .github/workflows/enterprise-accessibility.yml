@@ -229,6 +229,20 @@ jobs:
           echo "Playwright includes comprehensive axe-core integration"
           echo "No additional browser automation needed"
 
+      # Ensure report directory exists before upload
+      - name: Ensure report directory exists
+        shell: bash
+        run: |
+          mkdir -p ${{ env.REPORT_DIR }}
+          echo "=== Report Directory Contents ==="
+          if [ -d "${{ env.REPORT_DIR }}" ]; then
+            ls -la ${{ env.REPORT_DIR }}/ || echo "Directory is empty"
+            echo "Directory size: $(du -sh ${{ env.REPORT_DIR }} 2>/dev/null | cut -f1)"
+          else
+            echo "❌ Report directory does not exist"
+            exit 1
+          fi
+
       # Upload individual tool reports as artifacts
       - name: Upload scan reports
         uses: actions/upload-artifact@v4
@@ -400,18 +414,12 @@ jobs:
         with:
           report-dir: ${{ env.REPORT_DIR }}
           target-url: ${{ needs.setup.outputs.target-url }}
-          standards: ${{ needs.setup.outputs.standards }}
-          scan-tools: ${{ needs.setup.outputs.tools }}
           axe-violations: ${{ steps.extract.outputs.axe-violations }}
           pa11y-issues: ${{ steps.extract.outputs.pa11y-issues }}
           lighthouse-desktop-score: ${{ steps.extract.outputs.lighthouse-desktop }}
           lighthouse-mobile-score: ${{ steps.extract.outputs.lighthouse-mobile }}
           playwright-violations: ${{ steps.extract.outputs.playwright-violations }}
-          workflow-run-id: ${{ github.run_id }}
           workflow-run-number: ${{ github.run_number }}
-          generate-dashboard: 'true'
-          generate-summary: 'true'
-          generate-pr-comment: 'true'
 
       # Upload comprehensive reports
       - name: Upload accessibility reports
@@ -731,4 +739,3 @@ jobs:
             echo "- ✅ **Test and validate** all changes automatically" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Result:** Professional accessibility implementation in ~1 hour vs $TOTAL_MANUAL_HOURS hours manual work" >> $GITHUB_STEP_SUMMARY
-          fi
