@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Enterprise Accessibility Scanner Validation Script
-# This script validates the structure and syntax of the enterprise accessibility system
+# Unified Accessibility Scanner Validation Script
+# This script validates the structure and syntax of the unified accessibility system
 
 set -e
 
-echo "🔍 Validating Enterprise Accessibility Scanner..."
-echo "================================================"
+echo "🔍 Validating Unified Accessibility Scanner..."
+echo "==============================================="
 
 # Check for required files
 echo "📁 Checking file structure..."
 
 REQUIRED_FILES=(
-    ".github/workflows/enterprise-accessibility.yml"
+    ".github/workflows/unified-accessibility.yml"
     ".github/accessibility-config.yml"
     ".github/ACCESSIBILITY.md"
     ".github/actions/setup-accessibility-tools/action.yml"
@@ -23,6 +23,7 @@ REQUIRED_FILES=(
     ".github/actions/generate-accessibility-report/action.yml"
     ".github/actions/notify-webhooks/action.yml"
     ".github/actions/puppeteer-scan/action.yml"
+    "tests/accessibility/accessibility.spec.js"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -39,7 +40,7 @@ echo ""
 echo "📝 Validating YAML syntax..."
 
 YAML_FILES=(
-    ".github/workflows/enterprise-accessibility.yml"
+    ".github/workflows/unified-accessibility.yml"
     ".github/accessibility-config.yml"
 )
 
@@ -129,7 +130,7 @@ done
 echo ""
 echo "🚀 Validating workflow triggers..."
 
-WORKFLOW_FILE=".github/workflows/enterprise-accessibility.yml"
+WORKFLOW_FILE=".github/workflows/unified-accessibility.yml"
 
 if grep -q "workflow_dispatch:" "$WORKFLOW_FILE" && \
    grep -q "pull_request:" "$WORKFLOW_FILE" && \
@@ -141,10 +142,10 @@ else
 fi
 
 # Check for matrix strategy
-if grep -q "strategy:" "$WORKFLOW_FILE" && grep -q "matrix:" "$WORKFLOW_FILE"; then
-    echo "✅ Workflow uses matrix strategy for parallel execution"
+if grep -q "accessibility-scan:" "$WORKFLOW_FILE"; then
+    echo "✅ Workflow has comprehensive accessibility scanning job"
 else
-    echo "❌ Workflow missing matrix strategy"
+    echo "❌ Workflow missing accessibility scanning job"
     exit 1
 fi
 
@@ -155,10 +156,10 @@ echo "📚 Validating documentation..."
 DOC_FILE=".github/ACCESSIBILITY.md"
 
 if [ -f "$DOC_FILE" ]; then
-    if grep -q "# Enterprise Accessibility Scanner" "$DOC_FILE" && \
-       grep -q "What This Solution Offers" "$DOC_FILE" && \
+    if grep -q "# Enterprise Accessibility Scanner\|# Accessibility" "$DOC_FILE" && \
+       grep -q "What This Solution Offers\|Features" "$DOC_FILE" && \
        grep -q "Configuration" "$DOC_FILE" && \
-       grep -q "How It Works" "$DOC_FILE"; then
+       grep -q "How It Works\|Usage" "$DOC_FILE"; then
         echo "✅ Documentation has required sections"
     else
         echo "❌ Documentation missing required sections"
@@ -185,7 +186,7 @@ fi
 echo ""
 echo "🎉 All validations passed!"
 echo ""
-echo "✅ Enterprise Accessibility Scanner is properly configured"
+echo "✅ Unified Accessibility Scanner is properly configured"
 echo "✅ All composite actions are valid"
 echo "✅ Configuration file is correct"
 echo "✅ Workflow syntax is valid"

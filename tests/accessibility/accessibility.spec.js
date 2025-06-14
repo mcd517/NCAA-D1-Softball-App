@@ -94,7 +94,7 @@ test.describe('Comprehensive Accessibility Audit', () => {
     console.log(`Found ${issues.length} keyboard navigation issues`);
     
     if (issues.length > 0) {
-      await test.info().attach('keyboard-navigation-issues.json', {
+      await test.info().attach('keyboard-navigation.json', {
         body: JSON.stringify(issues, null, 2),
         contentType: 'application/json'
       });
@@ -211,7 +211,7 @@ test.describe('Comprehensive Accessibility Audit', () => {
     console.log(`Found ${issues.length} screen reader compatibility issues`);
     
     if (issues.length > 0) {
-      await test.info().attach('screen-reader-issues.json', {
+      await test.info().attach('screen-reader.json', {
         body: JSON.stringify(issues, null, 2),
         contentType: 'application/json'
       });
