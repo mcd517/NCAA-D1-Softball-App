@@ -212,37 +212,58 @@ jobs:
           echo "Running Lighthouse accessibility audit..."
           TARGET_URL="${{ needs.setup.outputs.target-url }}"
           
-          # Run lighthouse for desktop
+          # Run lighthouse for desktop with proper emulation settings
           lighthouse "$TARGET_URL" \
             --only-categories=accessibility \
             --output=json \
             --output-path=${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
-            --form-factor=desktop || echo "Lighthouse desktop scan completed with issues"
+            --form-factor=desktop \
+            --screenEmulation.disabled=true \
+            --screenEmulation.mobile=false || echo "Lighthouse desktop scan completed with issues"
           
-          # Run lighthouse for mobile
+          # Run lighthouse for mobile with explicit mobile emulation
           lighthouse "$TARGET_URL" \
             --only-categories=accessibility \
             --output=json \
             --output-path=${{ env.REPORT_DIR }}/lighthouse-accessibility-mobile.json \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
-            --form-factor=mobile || echo "Lighthouse mobile scan completed with issues"
+            --form-factor=mobile \
+            --screenEmulation.mobile=true || echo "Lighthouse mobile scan completed with issues"
 
       - name: Run Playwright accessibility tests
         run: |
           echo "Running Playwright accessibility tests..."
+          
+          # Create Playwright output directories
+          mkdir -p ${{ env.REPORT_DIR }}/playwright-results
+          
+          # Run Playwright tests with correct reporter syntax
           TARGET_URL="${{ needs.setup.outputs.target-url }}" npx playwright test tests/accessibility/accessibility.spec.js \
             --project=chromium \
-            --reporter=json:${{ env.REPORT_DIR }}/playwright-report.json \
-            --output=${{ env.REPORT_DIR }}/playwright-results || echo "Playwright tests completed with issues"
+            --reporter=json \
+            --output-dir=${{ env.REPORT_DIR }}/playwright-results || echo "Playwright tests completed with issues"
+          
+          # Move the JSON report to expected location if it exists
+          if [ -f "test-results/results.json" ]; then
+            mv test-results/results.json ${{ env.REPORT_DIR }}/playwright-report.json
+          elif [ -f "results.json" ]; then
+            mv results.json ${{ env.REPORT_DIR }}/playwright-report.json
+          else
+            echo "[]" > ${{ env.REPORT_DIR }}/playwright-report.json
+          fi
 
       - name: Create enhanced keyboard navigation test
         run: |
           echo "Creating enhanced keyboard navigation test..."
-          cat > enhanced-keyboard-test.js << 'EOF'
-          const { chromium } = require('playwright');
-          const fs = require('fs');
-          const path = require('path');
+          cat > enhanced-keyboard-test.mjs << 'EOF'
+          import { chromium } from 'playwright';
+          import fs from 'fs';
+          import path from 'path';
+          import { fileURLToPath } from 'url';
+
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = path.dirname(__filename);
 
           async function testKeyboardNavigation() {
             const browser = await chromium.launch({ headless: true });
@@ -361,16 +382,20 @@ jobs:
           });
           EOF
           
-          # Run the enhanced test
-          TARGET_URL="${{ needs.setup.outputs.target-url }}" REPORT_DIR="${{ env.REPORT_DIR }}" node enhanced-keyboard-test.js || echo "Enhanced keyboard test completed with issues"
+          # Run the enhanced test with ES modules
+          TARGET_URL="${{ needs.setup.outputs.target-url }}" REPORT_DIR="${{ env.REPORT_DIR }}" node enhanced-keyboard-test.mjs || echo "Enhanced keyboard test completed with issues"
 
       - name: Create enhanced screen reader test
         run: |
           echo "Creating enhanced screen reader test..."
-          cat > enhanced-screenreader-test.js << 'EOF'
-          const { chromium } = require('playwright');
-          const fs = require('fs');
-          const path = require('path');
+          cat > enhanced-screenreader-test.mjs << 'EOF'
+          import { chromium } from 'playwright';
+          import fs from 'fs';
+          import path from 'path';
+          import { fileURLToPath } from 'url';
+
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = path.dirname(__filename);
 
           async function testScreenReaderCompatibility() {
             const browser = await chromium.launch({ headless: true });
@@ -525,24 +550,68 @@ jobs:
           });
           EOF
           
-          # Run the enhanced test
-          TARGET_URL="${{ needs.setup.outputs.target-url }}" REPORT_DIR="${{ env.REPORT_DIR }}" node enhanced-screenreader-test.js || echo "Enhanced screen reader test completed with issues"
+          # Run the enhanced test with ES modules
+          TARGET_URL="${{ needs.setup.outputs.target-url }}" REPORT_DIR="${{ env.REPORT_DIR }}" node enhanced-screenreader-test.mjs || echo "Enhanced screen reader test completed with issues"
 
       - name: Generate comprehensive accessibility report
         run: |
           echo "Generating comprehensive accessibility report..."
           
-          # Calculate issue counts
-          AXCORE_ISSUES=$(jq 'if type=="array" then .[0].violations else .violations end | length' ${{ env.REPORT_DIR }}/axe-report.json 2>/dev/null || echo 0)
-          PA11Y_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/pa11y-report.json 2>/dev/null || echo 0)
-          KEYBOARD_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/keyboard-navigation.json 2>/dev/null || echo 0)
-          SCREENREADER_ISSUES=$(jq 'length' ${{ env.REPORT_DIR }}/screen-reader.json 2>/dev/null || echo 0)
-          LIGHTHOUSE_DESKTOP_SCORE=$(jq '.categories.accessibility.score * 100' ${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json 2>/dev/null || echo 0)
-          LIGHTHOUSE_MOBILE_SCORE=$(jq '.categories.accessibility.score * 100' ${{ env.REPORT_DIR }}/lighthouse-accessibility-mobile.json 2>/dev/null || echo 0)
+          # Helper function to safely extract numeric values from JSON
+          safe_jq_number() {
+            local file="$1"
+            local query="$2"
+            local default="${3:-0}"
+            
+            if [ -f "$file" ] && [ -s "$file" ]; then
+              local result=$(jq -r "$query" "$file" 2>/dev/null)
+              if [[ "$result" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+                echo "$result"
+              else
+                echo "$default"
+              fi
+            else
+              echo "$default"
+            fi
+          }
           
+          # Calculate issue counts with safe extraction
+          AXCORE_ISSUES=$(safe_jq_number "${{ env.REPORT_DIR }}/axe-report.json" 'if type=="array" then .[0].violations else .violations end | length' 0)
+          PA11Y_ISSUES=$(safe_jq_number "${{ env.REPORT_DIR }}/pa11y-report.json" 'length' 0)
+          KEYBOARD_ISSUES=$(safe_jq_number "${{ env.REPORT_DIR }}/keyboard-navigation.json" 'length' 0)
+          SCREENREADER_ISSUES=$(safe_jq_number "${{ env.REPORT_DIR }}/screen-reader.json" 'length' 0)
+          LIGHTHOUSE_DESKTOP_SCORE=$(safe_jq_number "${{ env.REPORT_DIR }}/lighthouse-accessibility-desktop.json" '.categories.accessibility.score * 100' 0)
+          LIGHTHOUSE_MOBILE_SCORE=$(safe_jq_number "${{ env.REPORT_DIR }}/lighthouse-accessibility-mobile.json" '.categories.accessibility.score * 100' 0)
+          
+          # Ensure all values are valid integers
+          AXCORE_ISSUES=${AXCORE_ISSUES:-0}
+          PA11Y_ISSUES=${PA11Y_ISSUES:-0}
+          KEYBOARD_ISSUES=${KEYBOARD_ISSUES:-0}
+          SCREENREADER_ISSUES=${SCREENREADER_ISSUES:-0}
+          LIGHTHOUSE_DESKTOP_SCORE=${LIGHTHOUSE_DESKTOP_SCORE:-0}
+          LIGHTHOUSE_MOBILE_SCORE=${LIGHTHOUSE_MOBILE_SCORE:-0}
+          
+          # Calculate totals safely
           TOTAL_ISSUES=$((AXCORE_ISSUES + PA11Y_ISSUES + KEYBOARD_ISSUES + SCREENREADER_ISSUES))
           
-          # Create executive summary
+          # Calculate average Lighthouse score safely
+          if [ "$LIGHTHOUSE_DESKTOP_SCORE" != "0" ] || [ "$LIGHTHOUSE_MOBILE_SCORE" != "0" ]; then
+            LIGHTHOUSE_AVERAGE=$(echo "scale=1; ($LIGHTHOUSE_DESKTOP_SCORE + $LIGHTHOUSE_MOBILE_SCORE) / 2" | bc -l 2>/dev/null || echo "0")
+          else
+            LIGHTHOUSE_AVERAGE="0"
+          fi
+          
+          echo "=== Calculated Metrics ==="
+          echo "Axe-core Issues: $AXCORE_ISSUES"
+          echo "Pa11y Issues: $PA11Y_ISSUES"
+          echo "Keyboard Issues: $KEYBOARD_ISSUES"
+          echo "Screen Reader Issues: $SCREENREADER_ISSUES"
+          echo "Total Issues: $TOTAL_ISSUES"
+          echo "Lighthouse Desktop Score: $LIGHTHOUSE_DESKTOP_SCORE%"
+          echo "Lighthouse Mobile Score: $LIGHTHOUSE_MOBILE_SCORE%"
+          echo "Lighthouse Average: $LIGHTHOUSE_AVERAGE%"
+          
+          # Create executive summary with validated data
           cat > ${{ env.REPORT_DIR }}/executive-summary.json << EOF
           {
             "scan_metadata": {
@@ -562,7 +631,7 @@ jobs:
               "lighthouse_scores": {
                 "desktop": $LIGHTHOUSE_DESKTOP_SCORE,
                 "mobile": $LIGHTHOUSE_MOBILE_SCORE,
-                "average": $(echo "($LIGHTHOUSE_DESKTOP_SCORE + $LIGHTHOUSE_MOBILE_SCORE) / 2" | bc -l 2>/dev/null || echo 0)
+                "average": $LIGHTHOUSE_AVERAGE
               }
             },
             "compliance_status": {
