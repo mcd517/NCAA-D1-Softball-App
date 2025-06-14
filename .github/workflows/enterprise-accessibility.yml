@@ -912,48 +912,48 @@ jobs:
             # Phase 3: Content Quality
             if [ "$PA11Y_ISSUES" -gt "0" ]; then
               echo "### 📝 Phase 3: Content Quality (⏰ 2-4 hours MANUAL)" >> $GITHUB_STEP_SUMMARY
-              echo "- **$PA11Y_ISSUES content and markup issues**" >> $GITHUB_STEP_SUMMARY
-              echo "- Review pa11y-report.html for specific element locations" >> $GITHUB_STEP_SUMMARY
-              echo "- Focus on images, headings, and form elements" >> $GITHUB_STEP_SUMMARY
-              echo "- Improves overall accessibility experience" >> $GITHUB_STEP_SUMMARY
+                echo "- **$PA11Y_ISSUES content and markup issues detected**" >> $GITHUB_STEP_SUMMARY
+                echo "- Review pa11y-report.html for specific element locations" >> $GITHUB_STEP_SUMMARY
+                echo "- Focus areas: images, headings, and form elements" >> $GITHUB_STEP_SUMMARY
+                echo "- Impacts overall accessibility quality score" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+              
+              # Phase 4: Validation
+              echo "### ✅ Phase 4: Validation (⏰ 30 minutes)" >> $GITHUB_STEP_SUMMARY
+              echo "- Re-run this accessibility workflow" >> $GITHUB_STEP_SUMMARY
+              echo "- Test keyboard navigation manually (Tab through page)" >> $GITHUB_STEP_SUMMARY
+              echo "- Test with screen reader if possible (NVDA/VoiceOver)" >> $GITHUB_STEP_SUMMARY
+              echo "- Verify all issues are resolved" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-            fi
-            
-            # Phase 4: Validation
-            echo "### ✅ Phase 4: Validation (⏰ 30 minutes)" >> $GITHUB_STEP_SUMMARY
-            echo "- Re-run this accessibility workflow" >> $GITHUB_STEP_SUMMARY
-            echo "- Test keyboard navigation manually (Tab through page)" >> $GITHUB_STEP_SUMMARY
-            echo "- Test with screen reader if possible (NVDA/VoiceOver)" >> $GITHUB_STEP_SUMMARY
-            echo "- Verify all issues are resolved" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # Copilot SWE automation section
-            echo "---" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "## 🤖 Automated Fix Option: GitHub Copilot SWE Agent" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # Calculate time savings
-            TOTAL_MANUAL_HOURS=8
-            COPILOT_HOURS=1
-            TIME_SAVED=$((TOTAL_MANUAL_HOURS - COPILOT_HOURS))
-            EFFICIENCY_GAIN=$((TIME_SAVED * 100 / TOTAL_MANUAL_HOURS))
-            
-            echo "### ⚡ Automated Fix Instructions" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Instead of manual fixes, automate with Copilot SWE agent:**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "1. **Download** the \`accessibility-evaluation-comprehensive.zip\` artifact" >> $GITHUB_STEP_SUMMARY
-            echo "2. **Extract** and locate \`copilot-issue-summary.md\`" >> $GITHUB_STEP_SUMMARY
-            echo "3. **Create GitHub Issue:**" >> $GITHUB_STEP_SUMMARY
-            echo "   - Go to [Issues tab](../../issues/new)" >> $GITHUB_STEP_SUMMARY
-            echo "   - Title: \`🔧 Accessibility Fixes - $TOTAL_ISSUES violations found\`" >> $GITHUB_STEP_SUMMARY
-            echo "   - Copy/paste entire contents of \`copilot-issue-summary.md\`" >> $GITHUB_STEP_SUMMARY
-            echo "4. **Assign Copilot:**" >> $GITHUB_STEP_SUMMARY
-            echo "   - Add label: \`copilot\`" >> $GITHUB_STEP_SUMMARY
-            echo "   - Assign to: \`@copilot\`" >> $GITHUB_STEP_SUMMARY
-            echo "   - Mention: \`@copilot please implement all accessibility fixes listed above\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+              
+              # Automated analysis section
+              echo "---" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 📊 Automated Analysis Available" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              
+              # Calculate time savings
+              TOTAL_MANUAL_HOURS=8
+              AUTOMATED_HOURS=1
+              TIME_SAVED=$((TOTAL_MANUAL_HOURS - AUTOMATED_HOURS))
+              EFFICIENCY_GAIN=$((TIME_SAVED * 100 / TOTAL_MANUAL_HOURS))
+              
+              echo "### ⚡ Automated Implementation Option" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Leverage automated tools for implementation:**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "1. **Download** the \`accessibility-evaluation-comprehensive.zip\` artifact" >> $GITHUB_STEP_SUMMARY
+              echo "2. **Review** the detailed analysis in \`accessibility-analysis.md\`" >> $GITHUB_STEP_SUMMARY
+              echo "3. **Create Issue for Tracking:**" >> $GITHUB_STEP_SUMMARY
+              echo "   - Go to [Issues tab](../../issues/new)" >> $GITHUB_STEP_SUMMARY
+              echo "   - Title: \`📊 Accessibility Analysis - $TOTAL_ISSUES issues identified\`" >> $GITHUB_STEP_SUMMARY
+              echo "   - Copy the comprehensive analysis report" >> $GITHUB_STEP_SUMMARY
+              echo "4. **Implement Solutions:**" >> $GITHUB_STEP_SUMMARY
+              echo "   - Use automated tools and agents" >> $GITHUB_STEP_SUMMARY
+              echo "   - Follow the prioritized implementation plan" >> $GITHUB_STEP_SUMMARY
+              echo "   - Validate changes with this workflow" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
             echo "### ⏱️ Time Comparison" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| Approach | Time Required | Efficiency |" >> $GITHUB_STEP_SUMMARY
