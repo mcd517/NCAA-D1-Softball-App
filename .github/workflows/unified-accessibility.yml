@@ -235,22 +235,38 @@ jobs:
         run: |
           echo "Running Playwright accessibility tests..."
           
-          # Create Playwright output directories
+          # Create Playwright output directories for artifacts (traces, screenshots, etc.)
           mkdir -p ${{ env.REPORT_DIR }}/playwright-results
           
-          # Run Playwright tests with correct reporter syntax
-          TARGET_URL="${{ needs.setup.outputs.target-url }}" npx playwright test tests/accessibility/accessibility.spec.js \
-            --project=chromium \
-            --reporter=json \
+          # Run Playwright tests.
+          # --reporter=json on CLI typically outputs to 'playwright-report/results.json' by default.
+          TARGET_URL="${{ needs.setup.outputs.target-url }}" npx playwright test tests/accessibility/accessibility.spec.js \\
+            --project=chromium \\
+            --reporter=json \\
             --output-dir=${{ env.REPORT_DIR }}/playwright-results || echo "Playwright tests completed with issues"
           
-          # Move the JSON report to expected location if it exists
-          if [ -f "test-results/results.json" ]; then
-            mv test-results/results.json ${{ env.REPORT_DIR }}/playwright-report.json
+          # Define source and target for the report
+          # The --reporter=json CLI flag typically outputs to "playwright-report/results.json" by default.
+          PLAYWRIGHT_JSON_REPORT_SOURCE="playwright-report/results.json"
+          PLAYWRIGHT_JSON_REPORT_TARGET="${{ env.REPORT_DIR }}/playwright-report.json"
+
+          # Ensure the target directory for the report exists (it should, as REPORT_DIR is created earlier)
+          mkdir -p "$(dirname "$PLAYWRIGHT_JSON_REPORT_TARGET")"
+
+          # Move the JSON report from the default location to the consolidated report directory
+          if [ -f "$PLAYWRIGHT_JSON_REPORT_SOURCE" ]; then
+            mv "$PLAYWRIGHT_JSON_REPORT_SOURCE" "$PLAYWRIGHT_JSON_REPORT_TARGET"
+            echo "Moved Playwright report from $PLAYWRIGHT_JSON_REPORT_SOURCE to $PLAYWRIGHT_JSON_REPORT_TARGET"
+          # Fallback to the old locations, just in case, with a warning.
+          elif [ -f "test-results/results.json" ]; then
+            echo "Warning: Playwright report found at 'test-results/results.json' (expected '$PLAYWRIGHT_JSON_REPORT_SOURCE'). Moving it."
+            mv "test-results/results.json" "$PLAYWRIGHT_JSON_REPORT_TARGET"
           elif [ -f "results.json" ]; then
-            mv results.json ${{ env.REPORT_DIR }}/playwright-report.json
+            echo "Warning: Playwright report found at 'results.json' (expected '$PLAYWRIGHT_JSON_REPORT_SOURCE'). Moving it."
+            mv "results.json" "$PLAYWRIGHT_JSON_REPORT_TARGET"
           else
-            echo "[]" > ${{ env.REPORT_DIR }}/playwright-report.json
+            echo "Playwright JSON report not found at '$PLAYWRIGHT_JSON_REPORT_SOURCE' or common fallbacks. Creating an empty report at '$PLAYWRIGHT_JSON_REPORT_TARGET'."
+            echo "[]" > "$PLAYWRIGHT_JSON_REPORT_TARGET"
           fi
 
       - name: Create enhanced keyboard navigation test
