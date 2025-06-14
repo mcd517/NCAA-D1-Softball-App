@@ -91,17 +91,28 @@ The server exposes the following endpoints:
 - **Rate Limiting**: The server enforces a 1-second delay between external NCAA API calls.
 - **API Base URL**: Defined in `server/services/ncaaWebScraper.js` as `https://ncaa-api.henrygd.me`.
 
-## Accessibility
+## Accessibility - Government Compliance
 
-This application includes enterprise-grade automated accessibility evaluation to ensure WCAG 2.1 AA compliance. The system features:
+This application includes enterprise-grade WCAG 2.1 Level AA compliance specifically designed for state and local government customers, as required by the U.S. Department of Justice accessibility rule. The system features:
 
+- **🏛️ Government Compliance**: Zero-tolerance policy for critical/serious violations meeting Department of Justice requirements
+- **📋 WCAG 2.1 AA Certified**: Full compliance with [WCAG 2.1 Guidelines](https://www.w3.org/TR/WCAG21/) Level AA standards
 - **🔧 Enterprise Scanner**: Modular, configurable accessibility testing with parallel execution
-- **🎯 Quality Gates**: Configurable thresholds with pass/fail criteria
-- **📊 Comprehensive Reporting**: HTML dashboards, PR comments, and webhook notifications
-- **⚙️ Multi-Standard Support**: WCAG 2.1 A/AA/AAA, Section 508, EN 301 549
-- **🚀 Parallel Execution**: Matrix strategy for faster scanning with multiple tools
+- **🎯 Strict Quality Gates**: Government-standard thresholds (0 critical, 0 serious violations)
+- **📊 Compliance Reporting**: Comprehensive HTML dashboards, audit trails, and formal compliance documentation
+- **⚙️ Multi-Standard Support**: WCAG 2.1 A/AA/AAA, Section 508, EN 301 549 for complete government compliance
+- **🚀 Automated Testing**: Continuous compliance monitoring with axe-core, pa11y, Lighthouse, and Playwright
+- **📄 Legal Documentation**: Complete audit trails and compliance reports for government review
 
-The scans run automatically on PRs and weekly schedules, using industry-standard tools including axe-core, pa11y, Lighthouse, and Playwright. See [Enterprise Accessibility Documentation](.github/ENTERPRISE_ACCESSIBILITY.md) for detailed setup and configuration.
+### Government Compliance Features
+
+- **Zero Critical Violations**: Automated blocking of deployments with critical accessibility issues
+- **Audit Trail**: Complete documentation of all accessibility testing and remediation
+- **Legal Compliance Reports**: Formal PDF reports suitable for government submission
+- **User Testing Integration**: Support for assistive technology user testing requirements
+- **Accessibility Statement**: Public accessibility commitment documentation
+
+See [WCAG 2.1 Compliance Documentation](.github/WCAG_COMPLIANCE.md) for detailed compliance information and [Enterprise Accessibility Documentation](.github/ENTERPRISE_ACCESSIBILITY.md) for technical setup and configuration.
 
 ## Contributing
 

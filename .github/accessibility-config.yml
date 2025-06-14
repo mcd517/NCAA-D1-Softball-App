@@ -11,63 +11,88 @@ default:
   retries: 2
   parallel: true
 
-# Quality gates and thresholds
+# Quality gates and thresholds - Government compliance standards (WCAG 2.1 AA)
 thresholds:
-  max_critical_violations: 0      # Fail if more than this many critical violations
-  max_serious_violations: 5       # Fail if more than this many serious violations  
-  max_moderate_violations: 10     # Fail if more than this many moderate violations
-  max_minor_violations: 20        # Fail if more than this many minor violations
-  min_lighthouse_score: 90        # Fail if Lighthouse score below this
-  max_pa11y_issues: 5            # Fail if more than this many Pa11y issues
-  max_playwright_violations: 3    # Fail if more than this many Playwright violations
+  max_critical_violations: 0      # Government standard: Zero critical violations allowed
+  max_serious_violations: 0       # Government standard: Zero serious violations for AA compliance  
+  max_moderate_violations: 2      # Government standard: Minimal moderate violations allowed
+  max_minor_violations: 5         # Government standard: Limited minor violations acceptable
+  min_lighthouse_score: 95        # Government standard: High accessibility score required
+  max_pa11y_issues: 0            # Government standard: Zero Pa11y issues for full compliance
+  max_playwright_violations: 0    # Government standard: Zero end-to-end accessibility violations
 
-# Tool-specific configurations
+# Tool-specific configurations - Enhanced for WCAG 2.1 government compliance
 tools:
   axe:
-    standards: ["wcag2a", "wcag2aa", "wcag21aa"]
+    standards: ["wcag2a", "wcag2aa", "wcag21aa", "wcag21a"]  # Full WCAG 2.1 Level A & AA coverage
     chrome_options: ["no-sandbox", "disable-dev-shm-usage"]
-    fail_on_violations: false
-    include_experimental: false
+    fail_on_violations: true                                  # Strict enforcement for government compliance
+    include_experimental: false                               # Only use stable rules for compliance
+    best_practices: true                                      # Include accessibility best practices
     
   pa11y:
-    standard: "WCAG2AA"
+    standard: "WCAG2AA"                                      # WCAG 2.1 Level AA standard
     chrome_options: ["no-sandbox", "disable-dev-shm-usage", "disable-gpu", "headless"]
     reporters: ["json", "html", "csv"]
-    include_warnings: true
-    include_notices: true
-    ignore_rules: []  # Add rule IDs to ignore specific issues
+    include_warnings: true                                    # Include all warnings for government review
+    include_notices: true                                     # Include notices for comprehensive reporting
+    ignore_rules: []                                         # No ignored rules for full government compliance
+    timeout: 45000                                           # Extended timeout for thorough analysis
     
   lighthouse:
-    form_factors: ["desktop", "mobile"]
+    form_factors: ["desktop", "mobile"]                      # Test both desktop and mobile compliance
     categories: ["accessibility"]
     chrome_flags: ["headless", "no-sandbox", "disable-dev-shm-usage"]
+    settings:
+      only_categories: ["accessibility"]                     # Focus on accessibility audit
+      skip_audits: []                                        # No skipped audits for complete compliance
     
   playwright:
-    browsers: ["chromium"]
-    workers: 1
+    browsers: ["chromium"]                                   # Primary browser for government testing
+    workers: 1                                               # Single worker for consistent results
     test_file: "tests/accessibility/accessibility.spec.js"
+    timeout: 60000                                           # Extended timeout for comprehensive testing
+    screenshot_on_failure: true                              # Document failures for compliance reports
 
-# Multi-standard support
+# Multi-standard support - Enhanced for government compliance
 standards:
-  WCAG2A:
-    description: "Web Content Accessibility Guidelines 2.1 Level A"
+  WCAG21A:
+    description: "Web Content Accessibility Guidelines 2.1 Level A - Government Compliance"
     tags: ["wcag2a", "wcag21a"]
+    government_approved: true
     
-  WCAG2AA:
-    description: "Web Content Accessibility Guidelines 2.1 Level AA"
+  WCAG21AA:
+    description: "Web Content Accessibility Guidelines 2.1 Level AA - Government Standard"
     tags: ["wcag2a", "wcag2aa", "wcag21aa"]
+    government_approved: true
+    required_for_compliance: true
     
-  WCAG2AAA:
-    description: "Web Content Accessibility Guidelines 2.1 Level AAA"
+  WCAG21AAA:
+    description: "Web Content Accessibility Guidelines 2.1 Level AAA - Enhanced Government Compliance"
     tags: ["wcag2a", "wcag2aa", "wcag2aaa", "wcag21aaa"]
+    government_approved: true
+    enhanced_compliance: true
     
   Section508:
-    description: "Section 508 (US Federal Accessibility)"
+    description: "Section 508 (US Federal Accessibility) - Government Requirement"
     tags: ["section508", "wcag2a", "wcag2aa"]
+    government_approved: true
+    federal_requirement: true
     
   EN301549:
-    description: "EN 301 549 (European Accessibility Standard)"
+    description: "EN 301 549 (European Accessibility Standard) - International Government Standard"
     tags: ["en301549", "wcag2a", "wcag2aa"]
+    government_approved: true
+    international_standard: true
+
+# WCAG 2.1 Compliance Documentation Requirements
+wcag21_compliance:
+  required_level: "AA"                    # Government standard compliance level
+  document_conformance: true              # Generate conformance documentation
+  accessibility_statement_required: true # Public accessibility statement required
+  periodic_review_months: 12             # Annual compliance review required
+  user_testing_required: true           # User testing with assistive technology required
+  complaint_process_documented: true     # Document accessibility complaint process
 
 # Workflow execution settings
 execution:
@@ -77,42 +102,68 @@ execution:
   cache_tools: true             # Cache tool installations
   generate_artifacts: true      # Upload reports as artifacts
   
-# Reporting and notifications
+# Reporting and notifications - Enhanced for government compliance documentation
 reporting:
-  generate_dashboard: true       # Create HTML dashboard
-  generate_summary: true        # Create markdown summary  
-  generate_pr_comment: true     # Create PR comment format
-  include_screenshots: true     # Include failure screenshots
-  include_video: false          # Include test videos (large files)
+  generate_dashboard: true       # Create comprehensive HTML dashboard for stakeholders
+  generate_summary: true        # Create detailed markdown summary with compliance status
+  generate_pr_comment: true     # Create PR comment format for code review process
+  include_screenshots: true     # Include failure screenshots for documentation
+  include_video: false          # Keep file size manageable for government systems
+  generate_compliance_report: true    # Generate formal compliance documentation
+  include_remediation_guide: true     # Include specific remediation instructions
+  retention_days: 365                 # Extended retention for government audit requirements
   
-  # Webhook notifications (optional)
+  # Government compliance reporting formats
+  formats: ["json", "html", "csv", "pdf"]  # Include PDF for formal documentation
+  
+  # Compliance documentation sections
+  compliance_sections:
+    - "executive_summary"         # High-level compliance status
+    - "detailed_findings"         # Complete violation inventory  
+    - "wcag_conformance_table"    # WCAG 2.1 conformance level documentation
+    - "remediation_timeline"      # Recommended fix priorities and timeline
+    - "testing_methodology"       # Documentation of testing approach
+    - "accessibility_statement"   # Template for public accessibility statement
+  
+  # Webhook notifications for government stakeholders
   webhooks:
-    slack_url: ""               # Slack webhook URL for notifications
-    teams_url: ""               # Microsoft Teams webhook URL
-    discord_url: ""             # Discord webhook URL
+    slack_url: ""               # Slack webhook URL for team notifications
+    teams_url: ""               # Microsoft Teams webhook URL for government teams
+    discord_url: ""             # Discord webhook URL if used
+    compliance_webhook: ""      # Dedicated webhook for compliance team notifications
     
-# Environment-specific overrides
+# Environment-specific overrides - Government compliance standards
 environments:
   development:
     target_url: "http://localhost:3000"
     thresholds:
-      max_critical_violations: 3
-      max_serious_violations: 10
-      min_lighthouse_score: 70
+      max_critical_violations: 2       # More lenient during development
+      max_serious_violations: 5        # Allow some serious violations in dev
+      max_moderate_violations: 10      # Higher tolerance for dev environment
+      min_lighthouse_score: 80         # Lower threshold for development
+      max_pa11y_issues: 5             # Allow some issues during development
+      max_playwright_violations: 3     # Some tolerance for dev testing
       
   staging:
     target_url: "https://staging.ncaa-d1-softball.netlify.app/"
     thresholds:
-      max_critical_violations: 1
-      max_serious_violations: 5
-      min_lighthouse_score: 85
+      max_critical_violations: 0       # Zero critical violations in staging
+      max_serious_violations: 1        # Very limited serious violations
+      max_moderate_violations: 3       # Minimal moderate violations
+      min_lighthouse_score: 92         # High threshold for staging
+      max_pa11y_issues: 1             # Almost zero tolerance for staging
+      max_playwright_violations: 1     # Minimal violations in staging
       
   production:
     target_url: "https://ncaa-d1-softball.netlify.app/"
     thresholds:
-      max_critical_violations: 0
-      max_serious_violations: 2
-      min_lighthouse_score: 90
+      max_critical_violations: 0       # Government standard: Zero critical violations
+      max_serious_violations: 0        # Government standard: Zero serious violations
+      max_moderate_violations: 0       # Government standard: Zero moderate violations for full compliance
+      max_minor_violations: 2          # Government standard: Very limited minor violations
+      min_lighthouse_score: 96         # Government standard: Highest accessibility score
+      max_pa11y_issues: 0             # Government standard: Full compliance required
+      max_playwright_violations: 0     # Government standard: Zero violations in production
 
 # Repository-specific settings (can be overridden)
 repository:
@@ -120,76 +171,13 @@ repository:
   name: "NCAA-D1-Softball-WebApp"
   branch: "main"
   
-# Governance settings
+# Governance settings - Government compliance enforcement
 governance:
-  require_approval: false        # Require manual approval for accessibility failures
-  block_merges: false           # Block PR merges on accessibility failures
-  auto_create_issues: false     # Automatically create GitHub issues for failures
-  assign_reviewers: []          # GitHub usernames to assign for review
+  require_approval: true           # Require manual approval for accessibility failures in government context
+  block_merges: true              # Block PR merges on accessibility failures for compliance
+  auto_create_issues: true        # Automatically create GitHub issues for compliance tracking
+  assign_reviewers: []            # GitHub usernames for accessibility compliance review
+  compliance_review_required: true # Additional compliance review step for government standards
+  audit_trail: true               # Maintain detailed audit trail for government compliance
+  legal_review_threshold: "serious" # Trigger legal review for serious+ violations
 
-# Accessibility Testing Configuration
-# Used by enterprise-accessibility.yml workflow
-
-# Environment-specific settings
-environments:
-  development:
-    target_url: "http://localhost:5173"
-  staging:
-    target_url: "https://ncaa-d1-softball-staging.netlify.app/"
-  production:
-    target_url: "https://ncaa-d1-softball.netlify.app/"
-
-# Quality gate thresholds
-thresholds:
-  max_critical_violations: 0
-  max_serious_violations: 5
-  max_moderate_violations: 10
-  max_minor_violations: 20
-  min_lighthouse_score: 90
-  max_pa11y_issues: 5
-  max_playwright_violations: 3
-
-# Tool configurations
-tools:
-  axe:
-    enabled: true
-    rules:
-      - "wcag2a"
-      - "wcag2aa"
-      - "wcag21aa"
-    timeout: 30000
-    
-  pa11y:
-    enabled: true
-    standard: "WCAG2AA"
-    timeout: 30000
-    runners: ["htmlcs"]
-    ignore:
-      - "WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail"
-    
-  lighthouse:
-    enabled: true
-    form_factors: ["desktop", "mobile"]
-    timeout: 30000
-    categories: ["accessibility"]
-    
-  playwright:
-    enabled: true
-    browsers: ["chromium"]
-    timeout: 30000
-    workers: 1
-
-# Reporting settings
-reporting:
-  formats: ["json", "html", "csv"]
-  retention_days: 90
-  generate_dashboard: true
-  generate_summary: true
-  generate_pr_comment: true
-
-# Notification settings (optional)
-notifications:
-  enabled: false
-  slack_webhook: ""
-  teams_webhook: ""
-  email_recipients: []

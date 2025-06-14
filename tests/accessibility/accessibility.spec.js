@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test.describe('Comprehensive Accessibility Audit', () => {
+test.describe('WCAG 2.1 Government Compliance Audit', () => {
   const targetUrl = process.env.TARGET_URL || 'https://ncaa-d1-softball.netlify.app/';
   
   test.beforeEach(async ({ page }) => {
@@ -11,50 +11,111 @@ test.describe('Comprehensive Accessibility Audit', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('axe-core accessibility scan - should pass WCAG 2.1 AA', async ({ page }) => {
+  test('WCAG 2.1 AA compliance scan - government standard', async ({ page }) => {
     const accessibilityScanResults = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
 
-    // Assert that there are no accessibility violations
+    // Government compliance requires zero violations
     expect(accessibilityScanResults.violations).toEqual([]);
+    
+    // Generate compliance metrics for government reporting
+    const complianceMetrics = {
+      totalTests: accessibilityScanResults.passes.length + accessibilityScanResults.violations.length,
+      passedTests: accessibilityScanResults.passes.length,
+      failedTests: accessibilityScanResults.violations.length,
+      compliancePercentage: Math.round((accessibilityScanResults.passes.length / (accessibilityScanResults.passes.length + accessibilityScanResults.violations.length)) * 100),
+      wcag21Level: 'AA',
+      governmentCompliant: accessibilityScanResults.violations.length === 0
+    };
+    
+    console.log('WCAG 2.1 Government Compliance Metrics:', JSON.stringify(complianceMetrics, null, 2));
+    
+    // Attach compliance report
+    await test.info().attach('wcag21-compliance-report.json', {
+      body: JSON.stringify({
+        complianceMetrics,
+        fullResults: accessibilityScanResults
+      }, null, 2),
+      contentType: 'application/json'
+    });
   });
 
-  test('axe-core accessibility scan - detailed violation report', async ({ page }) => {
+  test('WCAG 2.1 detailed violation report for government compliance', async ({ page }) => {
     const accessibilityScanResults = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
       .analyze();
 
-    // If there are violations, log them in detail for reporting
+    // If there are violations, log them in detail for government compliance reporting
     if (accessibilityScanResults.violations.length > 0) {
-      console.log('Accessibility violations found:');
+      console.log('WCAG 2.1 Government Compliance Violations Found:');
       accessibilityScanResults.violations.forEach((violation, index) => {
-        console.log(`\n--- Violation ${index + 1} ---`);
-        console.log(`ID: ${violation.id}`);
-        console.log(`Impact: ${violation.impact}`);
+        console.log(`\n--- Government Compliance Violation ${index + 1} ---`);
+        console.log(`Rule ID: ${violation.id}`);
+        console.log(`Impact Level: ${violation.impact}`);
+        console.log(`WCAG 2.1 Standard: ${violation.tags.filter(tag => tag.includes('wcag')).join(', ')}`);
         console.log(`Description: ${violation.description}`);
-        console.log(`Help: ${violation.help}`);
-        console.log(`Help URL: ${violation.helpUrl}`);
-        console.log(`Tags: ${violation.tags.join(', ')}`);
-        console.log(`Nodes affected: ${violation.nodes.length}`);
+        console.log(`Remediation Help: ${violation.help}`);
+        console.log(`Documentation: ${violation.helpUrl}`);
+        console.log(`Government Compliance Risk: ${violation.impact === 'critical' ? 'HIGH RISK - Blocks users with disabilities' : 
+                     violation.impact === 'serious' ? 'MEDIUM RISK - Significant usability impact' : 
+                     'LOWER RISK - Should be addressed for full compliance'}`);
+        console.log(`Elements Affected: ${violation.nodes.length}`);
         
         violation.nodes.forEach((node, nodeIndex) => {
-          console.log(`  Node ${nodeIndex + 1}:`);
+          console.log(`  Element ${nodeIndex + 1}:`);
           console.log(`    HTML: ${node.html}`);
-          console.log(`    Target: ${node.target.join(', ')}`);
-          console.log(`    Failure Summary: ${node.failureSummary}`);
+          console.log(`    CSS Selector: ${node.target.join(', ')}`);
+          console.log(`    Failure Details: ${node.failureSummary}`);
+          console.log(`    Compliance Impact: ${node.impact || violation.impact}`);
         });
       });
       
-      // Attach the full report as test artifact
-      await test.info().attach('axe-violations-report.json', {
-        body: JSON.stringify(accessibilityScanResults, null, 2),
+      // Attach comprehensive government compliance report
+      await test.info().attach('government-accessibility-violations.json', {
+        body: JSON.stringify({
+          complianceStatus: 'NON_COMPLIANT',
+          wcagLevel: 'AA',
+          standardVersion: '2.1',
+          testingDate: new Date().toISOString(),
+          targetUrl: targetUrl,
+          violations: accessibilityScanResults.violations,
+          governmentRequirements: {
+            criticalViolationsAllowed: 0,
+            seriousViolationsAllowed: 0,
+            currentCriticalViolations: accessibilityScanResults.violations.filter(v => v.impact === 'critical').length,
+            currentSeriousViolations: accessibilityScanResults.violations.filter(v => v.impact === 'serious').length,
+            complianceStatus: accessibilityScanResults.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').length === 0 ? 'COMPLIANT' : 'NON_COMPLIANT'
+          }
+        }, null, 2),
+        contentType: 'application/json'
+      });
+    } else {
+      console.log('✅ WCAG 2.1 AA Government Compliance: PASSED - No violations found');
+      
+      // Attach compliance confirmation report
+      await test.info().attach('government-compliance-confirmation.json', {
+        body: JSON.stringify({
+          complianceStatus: 'COMPLIANT',
+          wcagLevel: 'AA',
+          standardVersion: '2.1',
+          testingDate: new Date().toISOString(),
+          targetUrl: targetUrl,
+          violations: [],
+          governmentRequirements: {
+            criticalViolationsAllowed: 0,
+            seriousViolationsAllowed: 0,
+            currentCriticalViolations: 0,
+            currentSeriousViolations: 0,
+            complianceStatus: 'COMPLIANT'
+          }
+        }, null, 2),
         contentType: 'application/json'
       });
     }
 
-    // Generate metrics for reporting
-    const metrics = {
+    // Generate comprehensive metrics for government reporting
+    const governmentMetrics = {
       totalViolations: accessibilityScanResults.violations.length,
       criticalViolations: accessibilityScanResults.violations.filter(v => v.impact === 'critical').length,
       seriousViolations: accessibilityScanResults.violations.filter(v => v.impact === 'serious').length,
@@ -62,33 +123,42 @@ test.describe('Comprehensive Accessibility Audit', () => {
       minorViolations: accessibilityScanResults.violations.filter(v => v.impact === 'minor').length,
       passes: accessibilityScanResults.passes.length,
       incomplete: accessibilityScanResults.incomplete.length,
-      inapplicable: accessibilityScanResults.inapplicable.length
+      inapplicable: accessibilityScanResults.inapplicable.length,
+      // Government compliance specific metrics
+      governmentCompliant: accessibilityScanResults.violations.filter(v => v.impact === 'critical' || v.impact === 'serious').length === 0,
+      wcagLevel: 'AA',
+      wcagVersion: '2.1',
+      compliancePercentage: Math.round((accessibilityScanResults.passes.length / (accessibilityScanResults.passes.length + accessibilityScanResults.violations.length)) * 100),
+      testingFramework: 'axe-core',
+      testingDate: new Date().toISOString()
     };
 
-    console.log('\n--- Accessibility Scan Metrics ---');
-    console.log(`Total violations: ${metrics.totalViolations}`);
-    console.log(`Critical: ${metrics.criticalViolations}`);
-    console.log(`Serious: ${metrics.seriousViolations}`);
-    console.log(`Moderate: ${metrics.moderateViolations}`); 
-    console.log(`Minor: ${metrics.minorViolations}`);
-    console.log(`Passes: ${metrics.passes}`);
-    console.log(`Incomplete: ${metrics.incomplete}`);
-    console.log(`Inapplicable: ${metrics.inapplicable}`);
+    console.log('\n--- WCAG 2.1 Government Compliance Metrics ---');
+    console.log(`Total violations: ${governmentMetrics.totalViolations}`);
+    console.log(`Critical violations: ${governmentMetrics.criticalViolations} (Government limit: 0)`);
+    console.log(`Serious violations: ${governmentMetrics.seriousViolations} (Government limit: 0)`);
+    console.log(`Moderate violations: ${governmentMetrics.moderateViolations}`); 
+    console.log(`Minor violations: ${governmentMetrics.minorViolations}`);
+    console.log(`Successful tests: ${governmentMetrics.passes}`);
+    console.log(`Incomplete tests: ${governmentMetrics.incomplete}`);
+    console.log(`Inapplicable tests: ${governmentMetrics.inapplicable}`);
+    console.log(`Compliance percentage: ${governmentMetrics.compliancePercentage}%`);
+    console.log(`Government compliant: ${governmentMetrics.governmentCompliant ? '✅ YES' : '❌ NO'}`);
 
-    // Attach metrics as test artifact
-    await test.info().attach('accessibility-metrics.json', {
-      body: JSON.stringify(metrics, null, 2),
+    // Attach comprehensive government metrics as test artifact
+    await test.info().attach('government-accessibility-metrics.json', {
+      body: JSON.stringify(governmentMetrics, null, 2),
       contentType: 'application/json'
     });
   });
 
-  test('keyboard navigation - should support tab navigation', async ({ page }) => {
+  test('keyboard navigation - WCAG 2.1 government compliance', async ({ page }) => {
     const issues = [];
     
     // Get all focusable elements
     const focusableElements = await page.locator('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])').all();
     
-    console.log(`Found ${focusableElements.length} focusable elements`);
+    console.log(`Found ${focusableElements.length} focusable elements for government compliance testing`);
     
     // Test tab navigation through first 10 elements (to avoid timeout)
     const elementsToTest = Math.min(focusableElements.length, 10);
@@ -148,21 +218,23 @@ test.describe('Comprehensive Accessibility Audit', () => {
     expect(Array.isArray(issues)).toBe(true);
   });
 
-  test('screen reader compatibility - semantic structure', async ({ page }) => {
+  test('screen reader compatibility - WCAG 2.1 government compliance', async ({ page }) => {
     const issues = [];
     
-    // Test for missing alt text on images
+    // Test for missing alt text on images (WCAG 2.1 Success Criterion 1.1.1)
     const imagesWithoutAlt = await page.locator('img:not([alt])').count();
     if (imagesWithoutAlt > 0) {
       issues.push({
         type: 'screen-reader',
         severity: 'serious',
-        message: `${imagesWithoutAlt} images missing alt text`,
-        count: imagesWithoutAlt
+        wcagCriterion: '1.1.1',
+        message: `${imagesWithoutAlt} images missing alt text - violates WCAG 2.1 Success Criterion 1.1.1`,
+        count: imagesWithoutAlt,
+        governmentCompliance: 'VIOLATION'
       });
     }
     
-    // Test for unlabeled form inputs
+    // Test for unlabeled form inputs (WCAG 2.1 Success Criterion 1.3.1, 3.3.2)
     const unlabeledInputs = await page.locator('input:not([aria-label]):not([aria-labelledby])').count();
     const inputsWithoutLabels = await page.evaluate(() => {
       const inputs = Array.from(document.querySelectorAll('input'));
@@ -179,24 +251,28 @@ test.describe('Comprehensive Accessibility Audit', () => {
       issues.push({
         type: 'screen-reader',
         severity: 'serious',
-        message: `${inputsWithoutLabels} form inputs missing labels`,
-        count: inputsWithoutLabels
+        wcagCriterion: '1.3.1,3.3.2',
+        message: `${inputsWithoutLabels} form inputs missing labels - violates WCAG 2.1 Success Criteria 1.3.1 and 3.3.2`,
+        count: inputsWithoutLabels,
+        governmentCompliance: 'VIOLATION'
       });
     }
     
-    // Test heading structure
+    // Test heading structure (WCAG 2.1 Success Criterion 1.3.1)
     const headings = await page.locator('h1, h2, h3, h4, h5, h6').all();
-    console.log(`Found ${headings.length} headings`);
+    console.log(`Found ${headings.length} headings for government compliance review`);
     
     if (headings.length === 0) {
       issues.push({
         type: 'screen-reader',
         severity: 'moderate',
-        message: 'No heading structure found for screen reader navigation',
-        count: 1
+        wcagCriterion: '1.3.1',
+        message: 'No heading structure found for screen reader navigation - violates WCAG 2.1 Success Criterion 1.3.1',
+        count: 1,
+        governmentCompliance: 'VIOLATION'
       });
     } else {
-      // Check heading hierarchy
+      // Check heading hierarchy (WCAG 2.1 Success Criterion 1.3.1)
       const headingLevels = [];
       for (const heading of headings) {
         const tagName = await heading.evaluate(el => el.tagName);
