@@ -78,7 +78,10 @@ jobs:
             
             # Install yq if not available
             if ! command -v yq &> /dev/null; then
-              sudo snap install yq --classic || echo "yq installation failed, using defaults"
+              echo "Installing yq..."
+              wget -qO /tmp/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+              sudo chmod +x /tmp/yq
+              sudo mv /tmp/yq /usr/local/bin/yq || echo "yq installation failed, using defaults"
             fi
             
             # Override target URL based on environment
@@ -568,6 +571,12 @@ jobs:
           # Run the enhanced test with ES modules
           TARGET_URL="${{ needs.setup.outputs.target-url }}" REPORT_DIR="${{ env.REPORT_DIR }}" node enhanced-screenreader-test.mjs || echo "Enhanced screen reader test completed with issues"
 
+      - name: Install required dependencies
+        run: |
+          echo "Installing required system dependencies..."
+          sudo apt-get update -qq
+          sudo apt-get install -y bc jq
+
       - name: Generate comprehensive accessibility report
         id: quality_gate_check # Added id
         run: |
@@ -669,9 +678,54 @@ jobs:
           }
           EOF
           
-          # Create detailed HTML report (existing logic)
-          # ... (ensure variables like {{TOTAL_ISSUES}}, {{AXCORE_ISSUES}}, {{LIGHTHOUSE_SCORE}} are correctly substituted if this is a template)
-          # This part of the script was truncated in the provided context, but assuming it uses the calculated vars.
+          # Create a simple HTML dashboard report
+          cat > ${{ env.REPORT_DIR }}/accessibility-dashboard.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Accessibility Scan Results</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  .summary { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                  .pass { color: green; } .fail { color: red; } .warn { color: orange; }
+                  table { border-collapse: collapse; width: 100%; }
+                  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                  th { background-color: #f2f2f2; }
+              </style>
+          </head>
+          <body>
+              <h1>🔍 Accessibility Scan Results</h1>
+              <div class="summary">
+                  <h2>Summary</h2>
+                  <p><strong>Total Issues:</strong> <span class="$([ $TOTAL_ISSUES -eq 0 ] && echo 'pass' || echo 'fail')">$TOTAL_ISSUES</span></p>
+                  <p><strong>Scan Date:</strong> $(date)</p>
+                  <p><strong>Target URL:</strong> ${{ needs.setup.outputs.target-url }}</p>
+              </div>
+              
+              <h2>📊 Tool Results</h2>
+              <table>
+                  <tr><th>Tool</th><th>Issues Found</th><th>Status</th></tr>
+                  <tr><td>Axe-core</td><td>$AXCORE_ISSUES</td><td class="$([ $AXCORE_ISSUES -eq 0 ] && echo 'pass' || echo 'fail')">$([ $AXCORE_ISSUES -eq 0 ] && echo 'PASS' || echo 'FAIL')</td></tr>
+                  <tr><td>Pa11y</td><td>$PA11Y_ISSUES</td><td class="$([ $PA11Y_ISSUES -eq 0 ] && echo 'pass' || echo 'fail')">$([ $PA11Y_ISSUES -eq 0 ] && echo 'PASS' || echo 'FAIL')</td></tr>
+                  <tr><td>Keyboard Navigation</td><td>$KEYBOARD_ISSUES</td><td class="$([ $KEYBOARD_ISSUES -eq 0 ] && echo 'pass' || echo 'fail')">$([ $KEYBOARD_ISSUES -eq 0 ] && echo 'PASS' || echo 'FAIL')</td></tr>
+                  <tr><td>Screen Reader</td><td>$SCREENREADER_ISSUES</td><td class="$([ $SCREENREADER_ISSUES -eq 0 ] && echo 'pass' || echo 'fail')">$([ $SCREENREADER_ISSUES -eq 0 ] && echo 'PASS' || echo 'FAIL')</td></tr>
+                  <tr><td>Lighthouse Desktop</td><td>Score: $LIGHTHOUSE_DESKTOP_SCORE%</td><td class="$([ $LIGHTHOUSE_DESKTOP_SCORE -ge 90 ] && echo 'pass' || echo 'warn')">$([ $LIGHTHOUSE_DESKTOP_SCORE -ge 90 ] && echo 'GOOD' || echo 'NEEDS WORK')</td></tr>
+                  <tr><td>Lighthouse Mobile</td><td>Score: $LIGHTHOUSE_MOBILE_SCORE%</td><td class="$([ $LIGHTHOUSE_MOBILE_SCORE -ge 90 ] && echo 'pass' || echo 'warn')">$([ $LIGHTHOUSE_MOBILE_SCORE -ge 90 ] && echo 'GOOD' || echo 'NEEDS WORK')</td></tr>
+              </table>
+              
+              <h2>📋 Report Files</h2>
+              <ul>
+                  <li><a href="axe-report.json">Axe-core Report</a></li>
+                  <li><a href="pa11y-report.json">Pa11y Report</a></li>
+                  <li><a href="lighthouse-accessibility-desktop.json">Lighthouse Desktop</a></li>
+                  <li><a href="lighthouse-accessibility-mobile.json">Lighthouse Mobile</a></li>
+                  <li><a href="executive-summary.json">Executive Summary</a></li>
+              </ul>
+          </body>
+          </html>
+          EOF
 
           # GitHub Step Summary Generation
           echo "# 🔍 Unified Accessibility Scan Results" >> $GITHUB_STEP_SUMMARY
@@ -754,6 +808,14 @@ jobs:
           echo "total-issues=${TOTAL_ISSUES}" >> $GITHUB_OUTPUT
           echo "critical-issues=${TOTAL_CRITICAL_ISSUES_NUMERIC}" >> $GITHUB_OUTPUT
 
+      - name: Upload accessibility reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unified-accessibility-evaluation
+          path: ${{ env.REPORT_DIR }}
+          retention-days: 30
+
       - name: Fail workflow if quality gates failed and configured to fail
         if: needs.setup.outputs.fail-on-issues == 'true' && steps.quality_gate_check.outputs.passed == 'false' # Changed steps.quality-gates to steps.quality_gate_check
         run: |
@@ -769,6 +831,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup, accessibility-scan]
     if: github.event_name == 'pull_request'
+    env:
+      REPORT_DIR: 'accessibility-reports'
     permissions:
       pull-requests: write
     steps:
@@ -777,6 +841,12 @@ jobs:
         with:
           name: unified-accessibility-evaluation
           path: ${{ env.REPORT_DIR }}
+
+      - name: Install required dependencies
+        run: |
+          echo "Installing required dependencies for PR comment generation..."
+          sudo apt-get update -qq
+          sudo apt-get install -y bc jq
 
       - name: Generate PR comment
         run: |
